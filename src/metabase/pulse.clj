@@ -143,12 +143,19 @@
 (defn- goal-alert? [pulse]
   (= "goal" (:alert_condition pulse)))
 
+(defn- find-goal-value [result]
+  (case (get-in result [:card :display])
+    :line     (get-in result [:card :visualization_settings :graph.goal_value])
+    :progress (get-in result [:card :visualization_settings :progress.goal])
+    nil))
+
 (defn- goal-met? [{:keys [alert_above_goal] :as pulse} results]
-  (let [goal-val (get-in (first results) [:card :visualization_settings :graph.goal_value])
+  (let [first-result    (first results)
         goal-comparison (if alert_above_goal < >)]
-    (some (fn [[_ x-val]]
-               (goal-comparison goal-val x-val))
-             (get-in (first results) [:result :data :rows]))))
+    (when-let [goal-val (find-goal-value first-result)]
+      (some (fn [[_ x-val]]
+              (goal-comparison goal-val x-val))
+            (get-in first-result [:result :data :rows])))))
 
 (defn- should-send-notification?
   [{:keys [alert_condition] :as pulse} results]
