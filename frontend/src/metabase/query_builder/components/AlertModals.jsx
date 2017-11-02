@@ -24,7 +24,7 @@ import cxs from 'cxs';
 const getScheduleFromChannel = (channel) =>
     _.pick(channel, "schedule_day", "schedule_frame", "schedule_hour", "schedule_type")
 const classes = cxs ({
-    width: '185px',
+    width: '162px',
 })
 
 @connect((state) => ({ question: getQuestion(state), user: getUser(state) }), { createAlert })
@@ -135,20 +135,23 @@ export class AlertEducationalScreen extends Component {
             <div className="pt2 pb4 ml-auto mr-auto text-centered">
                 <div className="pt4">
                     <h1 className="mb1 text-dark">{t`The wide world of alerts`}</h1>
-                    <h3 className="mb4">{t`There are a few different kinds of alerts you can get`}</h3>
+                    <h3 className="mb4 text-normal text-dark">{t`There are a few different kinds of alerts you can get`}</h3>
                 </div>
-                <div className="text-paragraph pt4">
-                    <div className="flex align-center pr4">
+                {
+                    // @mazameli: needed to do some negative margin spacing to match the designs
+                }
+                <div className="text-normal pt3">
+                    <div className="relative flex align-center pr4" style={{marginLeft: -80}}>
                         <RetinaImage src="app/assets/img/alerts/education-illustration-01-raw-data.png" />
-                        <p className={`${classes} ml3 text-left`}>{jt`When a raw data question ${<strong>returns any results</strong>}`}</p>
+                        <p className={`${classes} ml2 text-left`}>{jt`When a raw data question ${<strong>returns any results</strong>}`}</p>
                     </div>
-                    <div className="flex align-center flex-reverse pl4">
+                    <div className="relative flex align-center flex-reverse pl4" style={{marginTop: -50, marginRight: -80}}>
                         <RetinaImage src="app/assets/img/alerts/education-illustration-02-goal.png" />
-                        <p className={`${classes} mr3 text-right`}>{jt`When a line or bar ${<strong>crosses a goal line</strong>}`}</p>
+                        <p className={`${classes} mr2 text-right`}>{jt`When a line or bar ${<strong>crosses a goal line</strong>}`}</p>
                     </div>
-                    <div className="flex align-center">
+                    <div className="relative flex align-center" style={{marginTop: -60, marginLeft: -55}}>
                         <RetinaImage src="app/assets/img/alerts/education-illustration-03-progress.png" />
-                        <p className={`${classes} ml3 text-left`}>{jt`When a progress bar ${<strong>reaches its goal</strong>}`}</p>
+                        <p className={`${classes} ml2 text-left`}>{jt`When a progress bar ${<strong>reaches its goal</strong>}`}</p>
                     </div>
                 </div>
                 <Button primary className="mt4" onClick={onProceed}>{t`Set up an alert`}</Button>
