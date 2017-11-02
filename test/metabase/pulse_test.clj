@@ -1,5 +1,6 @@
 (ns metabase.pulse-test
   (:require [expectations :refer :all]
+            [metabase.integrations.slack :as slack]
             [metabase.models
              [card :refer [Card]]
              [pulse :refer [Pulse retrieve-pulse retrieve-pulse-or-alert]]
@@ -7,7 +8,9 @@
              [pulse-channel :refer [PulseChannel]]
              [pulse-channel-recipient :refer [PulseChannelRecipient]]]
             [metabase.pulse :refer :all]
-            [metabase.test.data :as data]
+            [metabase.test
+             [data :as data]
+             [util :as tu]]
             [metabase.test.data
              [dataset-definitions :as defs]
              [users :as users]]
@@ -24,11 +27,12 @@
        (instance? java.io.File content)))
 
 (defn- checkins-query [query-map]
-  {:dataset_query {:database (data/id)
+  {:name          "Test card"
+   :dataset_query {:database (data/id)
                    :type     :query
-                   :query (merge {:source_table (data/id :checkins)
-                                  :aggregation [["count"]]}
-                                 query-map)}})
+                   :query    (merge {:source_table (data/id :checkins)
+                                     :aggregation  [["count"]]}
+                                    query-map)}})
 
 (defn- rasta-id []
   (users/user->id :rasta))
@@ -37,8 +41,11 @@
   "Macro that ensures test-data is present and disables sending of notifications"
   [& body]
   `(data/with-db (data/get-or-create-database! defs/test-data)
-     (with-redefs [metabase.pulse/send-notifications! identity]
-       ~@body)))
+     (tu/with-temporary-setting-values [~'site-url "https://metabase.com/testmb"]
+       (with-redefs [metabase.pulse/send-notifications! #(clojure.walk/postwalk identity %)
+                     slack/channels-list                (constantly [{:name "metabase_files"
+                                                                      :id   "FOO"}])]
+         ~@body))))
 
 ;; Basic test, 1 card, 1 recipient
 (expect
@@ -316,3 +323,132 @@
         (count (:message result))
         (email-body? (first (:message result)))
         (attachment? (second (:message result)))]))))
+
+(defn- thunk->boolean [{:keys [attachments] :as result}]
+  (assoc result :attachments (for [attachment-info attachments]
+                               (update attachment-info :attachment-bytes-thunk fn?))))
+
+;; Basic slack test, 1 card, 1 recipient channel
+(tt/expect-with-temp [Card         [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Pulse        [{pulse-id :id} {:name "Pulse Name"
+                                                    :skip_if_empty false}]
+                      PulseCard    [_              {:pulse_id pulse-id
+                                                    :card_id  card-id
+                                                    :position 0}]
+                      PulseChannel [{pc-id :id}    {:pulse_id pulse-id
+                                                    :channel_type "slack"
+                                                    :details {:channel "#general"}}]]
+  {:channel-id "#general",
+   :message "Pulse: Pulse Name",
+   :attachments
+   [{:title "Test card",
+     :attachment-bytes-thunk true
+     :title_link (str "https://metabase.com/testmb/question/" card-id),
+     :attachment-name "image.png",
+     :channel-id "FOO",
+     :fallback "Test card"}]}
+  (test-setup
+   (-> (send-pulse! (retrieve-pulse pulse-id))
+       first
+       thunk->boolean)))
+
+(defn- produces-bytes? [{:keys [attachment-bytes-thunk]}]
+  (< 0 (alength (attachment-bytes-thunk))))
+
+;; Basic slack test, 2 cards, 1 recipient channel
+(tt/expect-with-temp [Card         [{card-id-1 :id} (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Card         [{card-id-2 :id} (-> {:breakout [["datetime-field" (data/id :checkins :date) "minute"]]}
+                                                        checkins-query
+                                                        (assoc :name "Test card 2"))]
+                      Pulse        [{pulse-id :id}  {:name "Pulse Name"
+                                                              :skip_if_empty false}]
+                      PulseCard    [_               {:pulse_id pulse-id
+                                                              :card_id  card-id-1
+                                                              :position 0}]
+                      PulseCard    [_               {:pulse_id pulse-id
+                                                              :card_id  card-id-2
+                                                              :position 1}]
+                      PulseChannel [{pc-id :id}     {:pulse_id pulse-id
+                                                     :channel_type "slack"
+                                                     :details {:channel "#general"}}]]
+  [{:channel-id "#general",
+    :message "Pulse: Pulse Name",
+    :attachments
+    [{:title "Test card",
+      :attachment-bytes-thunk true
+      :title_link (str "https://metabase.com/testmb/question/" card-id-1),
+      :attachment-name "image.png",
+      :channel-id "FOO",
+      :fallback "Test card"}
+     {:title "Test card 2",
+      :attachment-bytes-thunk true
+      :title_link (str "https://metabase.com/testmb/question/" card-id-2),
+      :attachment-name "image.png",
+      :channel-id "FOO",
+      :fallback "Test card 2"}]}
+   true]
+  (test-setup
+   (let [[slack-data] (send-pulse! (retrieve-pulse pulse-id))]
+     [(thunk->boolean slack-data)
+      (every? produces-bytes? (:attachments slack-data))])))
+
+;; Test with a slack channel and an email
+(tt/expect-with-temp [Card                  [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Pulse                 [{pulse-id :id} {:name "Pulse Name"
+                                                             :skip_if_empty false}]
+                      PulseCard             [_              {:pulse_id pulse-id
+                                                             :card_id  card-id
+                                                             :position 0}]
+                      PulseChannel          [{pc-id-1 :id}  {:pulse_id pulse-id
+                                                             :channel_type "slack"
+                                                             :details {:channel "#general"}}]
+                      PulseChannel          [{pc-id-2 :id}  {:pulse_id pulse-id
+                                                             :channel_type "email"
+                                                             :details {}}]
+                      PulseChannelRecipient [_              {:user_id (rasta-id)
+                                                             :pulse_channel_id pc-id-2}]]
+  [{:channel-id "#general",
+     :message "Pulse: Pulse Name",
+     :attachments [{:title "Test card", :attachment-bytes-thunk true
+                    :title_link (str "https://metabase.com/testmb/question/" card-id),
+                    :attachment-name "image.png", :channel-id "FOO",
+                    :fallback "Test card"}]}
+   true
+   {:subject "Pulse: Pulse Name",
+    :recipients ["rasta@metabase.com"],
+    :message-type :attachments}
+   2
+   true
+   true]
+  (test-setup
+   (let [[slack-data email-data] (send-pulse! (retrieve-pulse pulse-id))]
+     [(thunk->boolean slack-data)
+      (every? produces-bytes? (:attachments slack-data))
+      (select-keys email-data [:subject :recipients :message-type])
+      (count (:message email-data))
+      (email-body? (first (:message email-data)))
+      (attachment? (second (:message email-data)))])))
+
+;; Rows slack alert with data
+(tt/expect-with-temp [Card         [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Pulse        [{pulse-id :id} {:name "Alert Name"
+                                                    :alert_condition  "rows"
+                                                    :alert_description "Alert on a thing"
+                                                    :alert_first_only false}]
+                      PulseCard    [_             {:pulse_id pulse-id
+                                                   :card_id  card-id
+                                                   :position 0}]
+                      PulseChannel [{pc-id :id}   {:pulse_id pulse-id
+                                                   :channel_type "slack"
+                                                   :details {:channel "#general"}}]]
+  [{:channel-id "#general",
+    :message "Alert: Alert Name",
+    :attachments [{:title "Test card", :attachment-bytes-thunk true,
+                   :title_link (str "https://metabase.com/testmb/question/" card-id)
+                   :attachment-name "image.png", :channel-id "FOO",
+                   :fallback "Test card"}]}
+   true]
+  (test-setup
+   (let [[result] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
+     [(thunk->boolean result)
+      (every? produces-bytes? (:attachments result))])))

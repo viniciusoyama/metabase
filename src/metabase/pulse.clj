@@ -88,7 +88,13 @@
        :channel-id channel-id
        :fallback   card-name})))
 
-(defn- create-slack-notification [pulse results channel-id]
+(defn- create-slack-alert-notification [pulse results channel-id]
+  (log/debug (u/format-color 'cyan "Sending Alert (%d: %s) via Slack" (:id pulse) (:name pulse)))
+  {:channel-id channel-id
+   :message (str "Alert: " (:name pulse))
+   :attachments (create-slack-attachment-data results)})
+
+(defn- create-slack-pulse-notification [pulse results channel-id]
   (log/debug (u/format-color 'cyan "Sending Pulse (%d: %s) via Slack" (:id pulse) (:name pulse)))
   {:channel-id channel-id
    :message (str "Pulse: " (:name pulse))
@@ -172,11 +178,14 @@
       (for [channel-id channel-ids
             :let [{:keys [channel_type details recipients]} (some #(when (= channel-id (:id %)) %)
                                                                   (:channels pulse))]]
-          (case (keyword channel_type)
-            :email ((if (alert? pulse)
-                      create-alert-notification
-                      create-pulse-notification) pulse results recipients)
-            :slack (create-slack-notification pulse results (:channel details)))))))
+        (case (keyword channel_type)
+          :email ((if (alert? pulse)
+                    create-alert-notification
+                    create-pulse-notification) pulse results recipients)
+          :slack ((if (alert? pulse)
+                    create-slack-alert-notification
+                    create-slack-pulse-notification)
+                   pulse results (:channel details)))))))
 
 (defn send-pulse!
   "Execute and Send a `Pulse`, optionally specifying the specific `PulseChannels`.  This includes running each
