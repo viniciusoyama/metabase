@@ -228,7 +228,8 @@ export default class Question {
         } else if (display === "progress") {
             return ALERT_TYPE_PROGRESS_BAR_GOAL
         } else if (mode.name() === "timeseries") {
-            if (this.card().visualization_settings["graph.show_goal"]) {
+            const vizSettings = this.card().visualization_settings
+            if (vizSettings["graph.show_goal"] && vizSettings["graph.goal_value"]) {
                 return ALERT_TYPE_TIMESERIES_GOAL
             }
         }
