@@ -29,7 +29,7 @@ export default class PulseList extends Component {
     }
 
     create() {
-        if (this.props.hasConfiguredChannel) {
+        if (this.props.hasConfiguredAnyChannel) {
             this.props.onChangeLocation("/pulse/create");
         } else {
             this.setState({ showSetupModal: true });

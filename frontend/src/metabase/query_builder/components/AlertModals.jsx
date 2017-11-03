@@ -9,7 +9,10 @@ import { getQuestion } from "metabase/query_builder/selectors";
 import _ from "underscore";
 import PulseEditChannels from "metabase/pulse/components/PulseEditChannels";
 import { fetchPulseFormInput, fetchUsers } from "metabase/pulse/actions";
-import { formInputSelector, hasConfiguredChannelSelector, userListSelector } from "metabase/pulse/selectors";
+import {
+    formInputSelector, hasConfiguredAnyChannelSelector, hasConfiguredEmailChannelSelector, hasLoadedChannelInfoSelector,
+    userListSelector
+} from "metabase/pulse/selectors";
 import DeleteModalWithConfirm from "metabase/components/DeleteModalWithConfirm";
 import ModalWithTrigger from "metabase/components/ModalWithTrigger";
 import { inflect } from "metabase/lib/formatting";
@@ -30,9 +33,12 @@ const classes = cxs ({
 
 @connect((state) => ({
     question: getQuestion(state),
+    isAdmin: getUserIsAdmin(state),
     user: getUser(state),
-    hasConfiguredChannel: hasConfiguredChannelSelector(state)
-}), { createAlert })
+    hasLoadedChannelInfo: hasLoadedChannelInfoSelector(state),
+    hasConfiguredAnyChannel: hasConfiguredAnyChannelSelector(state),
+    hasConfiguredEmailChannel: hasConfiguredEmailChannelSelector(state),
+}), { createAlert, fetchPulseFormInput })
 export class CreateAlertModalContent extends Component {
     // contains the first-time educational screen
     // ModalContent, parent uses ModalWithTrigger
@@ -73,6 +79,11 @@ export class CreateAlertModalContent extends Component {
         }
     }
 
+    componentWillMount() {
+        // loads the channel information
+        this.props.fetchPulseFormInput();
+    }
+
     onAlertChange = (alert) => this.setState({ alert })
 
     onCreateAlert = async () => {
@@ -92,15 +103,26 @@ export class CreateAlertModalContent extends Component {
     }
 
     render() {
-        const { question, onClose, hasConfiguredChannel, user } = this.props
+        const {
+            question,
+            onClose,
+            hasConfiguredAnyChannel,
+            hasConfiguredEmailChannel,
+            isAdmin,
+            user,
+            hasLoadedChannelInfo
+        } = this.props
         const { alert, hasSeenEducationalScreen } = this.state
 
-        if (!hasConfiguredChannel) {
+        const channelRequirementsMet = isAdmin ? hasConfiguredAnyChannel : hasConfiguredEmailChannel
+
+        if (hasLoadedChannelInfo && !channelRequirementsMet) {
             return (
                 <ChannelSetupModal
                     user={user}
                     onClose={onClose}
                     entityNamePlural={t`alerts`}
+                    channels={isAdmin ? ["email", "Slack"] : ["email"]}
                     fullPageModal
                 />
             )

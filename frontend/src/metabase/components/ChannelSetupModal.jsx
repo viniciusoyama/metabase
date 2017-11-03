@@ -11,17 +11,23 @@ export default class ChannelSetupModal extends Component {
         onClose: PropTypes.func.isRequired,
         user: PropTypes.object.isRequired,
         entityNamePlural: PropTypes.string.isRequired,
-        fullPageModal: PropTypes.boolean
+        channels: PropTypes.array,
+        fullPageModal: PropTypes.boolean,
     };
 
+    static defaultProps = {
+        channels: ["email", "Slack"]
+    }
+
     render() {
-        const { onClose, user, entityNamePlural, fullPageModal } = this.props
+        const { onClose, user, entityNamePlural, fullPageModal, channels } = this.props
+
 
         return (
             <ModalContent
                 onClose={onClose}
                 fullPageModal={fullPageModal}
-                title={`To send ${entityNamePlural}, ${ user.is_superuser ? "you'll need" : "an admin needs"} to set up email or Slack integration.`}
+                title={`To send ${entityNamePlural}, ${ user.is_superuser ? "you'll need" : "an admin needs"} to set up ${channels.join(" or ")} integration.`}
             >
                 <div className={cx("ml-auto mb4", { "mr4": !fullPageModal, "mr-auto text-centered": fullPageModal })}>
                     <ChannelSetupMessage user={this.props.user} />

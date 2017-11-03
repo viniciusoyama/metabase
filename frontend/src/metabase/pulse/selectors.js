@@ -18,10 +18,19 @@ const usersSelector        = state => state.pulse.users
 
 export const formInputSelector    = state => state.pulse.formInput
 
-export const hasConfiguredChannelSelector = createSelector(
+export const hasLoadedChannelInfoSelector = createSelector(
     [formInputSelector],
-    (formInput) => formInput.channels && _.some(Object.values(formInput.channels), (c) => c.configured)
+    (formInput) => !!formInput.channels
 )
+export const hasConfiguredAnyChannelSelector = createSelector(
+    [formInputSelector],
+    (formInput) => formInput.channels && _.some(Object.values(formInput.channels), (c) => c.configured) || false
+)
+export const hasConfiguredEmailChannelSelector = createSelector(
+    [formInputSelector],
+    (formInput) => formInput.channels && _.some(Object.values(formInput.channels), (c) => c.type === "email" && c.configured) || false
+)
+
 const cardPreviewsSelector = state => state.pulse.cardPreviews
 
 const cardListSelector = createSelector(
@@ -38,8 +47,8 @@ const getPulseId = (state, props) => props.params.pulseId ? parseInt(props.param
 
 // LIST
 export const listPulseSelectors = createSelector(
-    [getPulseId, pulseListSelector, formInputSelector, hasConfiguredChannelSelector],
-    (pulseId, pulses, formInput, hasConfiguredChannel) => ({ pulseId, pulses, formInput, hasConfiguredChannel })
+    [getPulseId, pulseListSelector, formInputSelector, hasConfiguredAnyChannelSelector],
+    (pulseId, pulses, formInput, hasConfiguredAnyChannel) => ({ pulseId, pulses, formInput, hasConfiguredAnyChannel })
 );
 
 // EDIT
