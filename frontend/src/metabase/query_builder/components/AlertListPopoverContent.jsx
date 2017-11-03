@@ -42,13 +42,20 @@ export class AlertListPopoverContent extends Component {
         this.setState( { ownAlertRemovedAsNonAdmin: true })
     }
 
+    isCreatedByCurrentUser = (alert) => {
+        const { user } = this.props;
+        return alert.creator.id === user.id
+    }
+
     render() {
         const { questionAlerts, setMenuFreeze, user } = this.props;
         const { adding, ownAlertRemovedAsNonAdmin } = this.state
 
+        const isNonAdmin = !user.is_superuser
+        const [ownAlerts, othersAlerts] = _.partition(questionAlerts, this.isCreatedByCurrentUser)
         // user's own alert should be shown first if it exists
-        const sortedQuestionAlerts = _.sortBy(questionAlerts, (alert) => alert.creator.id !== user.id)
-        const hasOwnAlert = _.any(questionAlerts, (alert) => alert.creator.id === user.id)
+        const sortedQuestionAlerts = [...ownAlerts, ...othersAlerts]
+        const hasOwnAndOthers = ownAlerts.length > 0 && othersAlerts.length > 0
 
         return (
             <div style={{ minWidth: 410 }}>
@@ -59,10 +66,11 @@ export class AlertListPopoverContent extends Component {
                             alert={alert}
                             setMenuFreeze={setMenuFreeze}
                             onRemovedOwnAlert={this.onRemovedOwnAlert}
+                            highlight={isNonAdmin && hasOwnAndOthers && this.isCreatedByCurrentUser(alert)}
                         />)
                     }
                 </ul>
-                { !hasOwnAlert &&
+                { ownAlerts.length === 0 &&
                     <div className="border-top p2 bg-light-blue">
                         <a className="link flex align-center text-bold text-small" onClick={this.onAdd}>
                             <Icon name="add" className={ownAlertCustomSpacing} /> {t`Set up your own alert`}
