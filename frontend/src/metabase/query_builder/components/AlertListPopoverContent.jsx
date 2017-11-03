@@ -11,15 +11,18 @@ import _ from "underscore";
 import cx from "classnames";
 import cxs from 'cxs';
 
-const customSpacing = cxs ({
+const unsubscribedClasses = cxs ({
     marginLeft: '10px'
 })
-const ownAlertCustomSpacing = cxs ({
+const ownAlertClasses = cxs ({
     marginLeft: '9px',
     marginRight: '17px'
 })
-const unsubscribeButtonSpacing = cxs ({
+const unsubscribeButtonClasses = cxs ({
     transform: `translateY(4px)`
+})
+const popoverClasses = cxs ({
+    minWidth: '410px'
 })
 
 @connect((state) => ({ questionAlerts: getQuestionAlerts(state), user: getUser(state) }), null)
@@ -58,7 +61,7 @@ export class AlertListPopoverContent extends Component {
         const hasOwnAndOthers = ownAlerts.length > 0 && othersAlerts.length > 0
 
         return (
-            <div style={{ minWidth: 410 }}>
+            <div className={popoverClasses}>
                 <ul>
                     { ownAlertRemovedAsNonAdmin && <UnsubscribedListItem /> }
                     { Object.values(sortedQuestionAlerts).map((alert) =>
@@ -73,7 +76,7 @@ export class AlertListPopoverContent extends Component {
                 { ownAlerts.length === 0 &&
                     <div className="border-top p2 bg-light-blue">
                         <a className="link flex align-center text-bold text-small" onClick={this.onAdd}>
-                            <Icon name="add" className={ownAlertCustomSpacing} /> {t`Set up your own alert`}
+                            <Icon name="add" className={ownAlertClasses} /> {t`Set up your own alert`}
                         </a>
                     </div>
                 }
@@ -151,7 +154,7 @@ export class AlertListItem extends Component {
                         <div>
                             <AlertCreatorTitle alert={alert} user={user} />
                         </div>
-                        <div className={`${unsubscribeButtonSpacing} ml-auto text-bold text-small`}>
+                        <div className={`${unsubscribeButtonClasses} ml-auto text-bold text-small`}>
                             { (isAdmin || isCurrentUser) && <a className="link" onClick={this.onEdit}>{jt`Edit`}</a> }
                             { !isAdmin && <a className="link ml2" onClick={this.onUnsubscribe}>{jt`Unsubscribe`}</a> }
                         </div>
@@ -192,7 +195,7 @@ export const UnsubscribedListItem = () =>
         <div className="circle flex align-center justify-center p1 bg-grey-0 ml2">
             <Icon name="check" className="text-success" />
         </div>
-        <h3 className={`${customSpacing} text-dark`} >{jt`Okay, you're unsubscribed`}</h3>
+        <h3 className={`${unsubscribedClasses} text-dark`} >{jt`Okay, you're unsubscribed`}</h3>
     </li>
 
 export class AlertScheduleText extends Component {
