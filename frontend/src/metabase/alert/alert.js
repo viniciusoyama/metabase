@@ -69,6 +69,14 @@ const updateAlertRequest = new RestfulRequest({
 export const updateAlert = (alert) => {
     return async (dispatch, getState) => {
         await dispatch(updateAlertRequest.trigger(alert))
+
+        dispatch(addUndo(createUndo({
+            type: "create-alert",
+            // eslint-disable-next-line react/display-name
+            message: () => <div className="flex align-center text-bold"><Icon name="alertConfirm" size="19" className="mr2 text-success" />Your alert was updated.</div>,
+            action: null // alert updating is not undoable
+        })));
+
         dispatch.action(UPDATE_ALERT)
     }
 }
