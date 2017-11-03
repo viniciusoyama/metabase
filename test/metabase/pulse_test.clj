@@ -260,7 +260,7 @@
   (test-setup
    (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-01" "2014-04-01"]
                                                                                 :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
-                                                               {:display :line
+                                                               {:display :area
                                                                 :visualization_settings {:graph.show_goal true :graph.goal_value 5.9}})]
                    Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
                                                          :alert_condition   "goal"
@@ -281,7 +281,7 @@
   (test-setup
    (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-10" "2014-02-12"]
                                                                                 :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
-                                                               {:display :line
+                                                               {:display :bar
                                                                 :visualization_settings {:graph.show_goal true :graph.goal_value 1.1}})]
                    Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
                                                          :alert_condition   "goal"
@@ -457,20 +457,25 @@
      [(thunk->boolean result)
       (every? produces-bytes? (:attachments result))])))
 
+(defn- venues-query [aggregation-op]
+  {:name          "Test card"
+   :dataset_query {:database (data/id)
+                   :type     :query
+                   :query    {:source_table (data/id :venues)
+                              :aggregation  [[aggregation-op (data/id :venues :price)]]}}})
+
 ;; Above goal alert with a progress bar
 (expect
   [true
    {:subject      "Alert: Goal Alert Name"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
-   2
-   true
+   1
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-04-01" "2014-06-01"]
-                                                                                :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
+   (tt/with-temp* [Card                 [{card-id :id}  (merge (venues-query "max")
                                                                {:display                :progress
-                                                                :visualization_settings {:progress.goal 5.9}})]
+                                                                :visualization_settings {:progress.goal 3}})]
                    Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
                                                          :alert_condition   "goal"
                                                          :alert_description "Alert when above goal"
@@ -485,9 +490,9 @@
      (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
        [(empty? no-more-results)
         (select-keys result [:subject :recipients :message-type])
+        ;; The pulse code interprets progress graphs as just a scalar, so there are no attachments
         (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+        (email-body? (first (:message result)))]))))
 
 ;; Below goal alert with progress bar
 (expect
@@ -495,14 +500,12 @@
    {:subject      "Alert: Goal Alert Name"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
-   2
-   true
+   1
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-12" "2014-02-17"]
-                                                                                :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
+   (tt/with-temp* [Card                 [{card-id :id}  (merge (venues-query "min")
                                                                {:display                :progress
-                                                                :visualization_settings {:progress.goal 1.1}})]
+                                                                :visualization_settings {:progress.goal 2}})]
                    Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
                                                          :alert_condition   "goal"
                                                          :alert_description "Alert when below goal"
@@ -518,5 +521,4 @@
        [(empty? no-more-results)
         (select-keys result [:subject :recipients :message-type])
         (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+        (email-body? (first (:message result)))]))))
