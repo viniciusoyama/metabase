@@ -173,7 +173,7 @@ export class AlertListItem extends Component {
                         { isAdmin && slackEnabled &&
                             <li className="ml3 flex align-center">
                                 <Icon name="slack" size={16} className="mr1" />
-                                { slackChannel.details.channel.replace("#","") }
+                                { slackChannel.details && slackChannel.details.channel.replace("#","") || t`No channel` }
                             </li>
                         }
                     </ul>
