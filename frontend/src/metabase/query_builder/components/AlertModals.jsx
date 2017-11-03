@@ -197,7 +197,11 @@ export class AlertEducationalScreen extends Component {
     }
 }
 
-@connect((state) => ({ isAdmin: getUserIsAdmin(state), question: getQuestion(state) }), { updateAlert, deleteAlert })
+@connect((state) => ({
+    user: getUser(state),
+    isAdmin: getUserIsAdmin(state),
+    question: getQuestion(state)
+}), { updateAlert, deleteAlert })
 export class UpdateAlertModalContent extends Component {
     props: {
         alert: any,
@@ -230,16 +234,18 @@ export class UpdateAlertModalContent extends Component {
     }
 
     render() {
-        const { onClose, question, alert, isAdmin } = this.props
+        const { onClose, question, alert, user, isAdmin } = this.props
         const { modifiedAlert } = this.state
 
+        const isCurrentUser = alert.creator.id === user.id
+        const title = isCurrentUser ? t`Edit your alert` : t`Edit alert`
         // TODO: Remove PulseEdit css hack
         return (
             <ModalContent
                 onClose={onClose}
             >
                 <div className="PulseEdit ml-auto mr-auto mb4" style={{maxWidth: "550px"}}>
-                    <AlertModalTitle text={t`Edit your alert`} />
+                    <AlertModalTitle text={title} />
                     <AlertEditForm
                         alertType={question.alertType()}
                         alert={modifiedAlert}
