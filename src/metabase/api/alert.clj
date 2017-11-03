@@ -97,6 +97,9 @@
 
 (api/defendpoint PUT "/:id/unsubscribe"
   [id]
+  ;; Admins are not allowed to unsubscribe from alerts, they should edit the alert
+  (api/check (not api/*is-superuser?*)
+    [400 "Admin user are not allowed to unsubscribe from alerts"])
   (assert (integer? id))
   (api/read-check Pulse id)
   (pulse/unsubscribe-from-alert id api/*current-user-id*)

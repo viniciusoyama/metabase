@@ -414,9 +414,13 @@
        (map :email)
        set))
 
+(expect
+  "Admin user are not allowed to unsubscribe from alerts"
+  ((user->client :crowberto) :put 400 (format "alert/1/unsubscribe")))
+
 ;; Alert has two recipients, remove one
 (expect
-  [#{"crowberto@metabase.com" "rasta@metabase.com"} #{"rasta@metabase.com"}]
+  [#{"crowberto@metabase.com" "rasta@metabase.com"} #{"crowberto@metabase.com"}]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
                     Pulse                [{pulse-id :id} {:alert_condition   "rows"
@@ -432,8 +436,8 @@
 
       [(recipient-emails ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
        (do
-         ((user->client :crowberto) :put 204 (format "alert/%d/unsubscribe" pulse-id))
-         (recipient-emails ((user->client :rasta) :get 200 (format "alert/question/%d" card-id))))])))
+         ((user->client :rasta) :put 204 (format "alert/%d/unsubscribe" pulse-id))
+         (recipient-emails ((user->client :crowberto) :get 200 (format "alert/question/%d" card-id))))])))
 
 ;; Testing delete of pulse by it's creator
 (expect
