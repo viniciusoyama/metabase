@@ -38,7 +38,7 @@ export default class VisualizationResult extends Component {
 
         const noResults = datasetContainsNoResults(result.data);
         if (noResults) {
-            const supportsRowsPresentAlert = question.mode().name() === "segment"
+            const supportsRowsPresentAlert = question.mode().name() === "segment" || (question.isNative() && question.display()=== "table")
 
             // successful query but there were 0 rows returned with the result
             return <div className="flex flex-full">
