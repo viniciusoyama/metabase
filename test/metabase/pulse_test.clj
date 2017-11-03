@@ -14,6 +14,7 @@
             [metabase.test.data
              [dataset-definitions :as defs]
              [users :as users]]
+            [toucan.db :as db]
             [toucan.util.test :as tt]))
 
 (defn- email-body? [{message-type :type content :content}]
@@ -522,3 +523,53 @@
         (select-keys result [:subject :recipients :message-type])
         (count (:message result))
         (email-body? (first (:message result)))]))))
+
+
+;; Rows alert, first run only with data
+(expect
+  [true
+   {:subject "Alert: Alert Name"
+    :recipients [(:email (users/fetch-user :rasta))]
+    :message-type :attachments}
+   2
+   true
+   true
+   false]
+  (test-setup
+   (tt/with-temp* [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                   Pulse                [{pulse-id :id} {:name "Alert Name"
+                                                         :alert_condition  "rows"
+                                                         :alert_description "Alert on a thing"
+                                                         :alert_first_only true}]
+                   PulseCard             [_             {:pulse_id pulse-id
+                                                         :card_id  card-id
+                                                         :position 0}]
+                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                   PulseChannelRecipient [_             {:user_id (rasta-id)
+                                                         :pulse_channel_id pc-id}]]
+     (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
+       [(empty? no-more-results)
+        (select-keys result [:subject :recipients :message-type])
+        (count (:message result))
+        (email-body? (first (:message result)))
+        (attachment? (second (:message result)))
+        (db/exists? Pulse :id pulse-id)]))))
+
+;; First run alert with no data
+(expect
+  [nil true]
+  (test-setup
+   (tt/with-temp* [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
+                                                                          :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
+                   Pulse                 [{pulse-id :id} {:name             "Alert Name"
+                                                          :alert_condition  "rows"
+                                                          :alert_description "Alert on a thing"
+                                                          :alert_first_only true}]
+                   PulseCard             [pulse-card     {:pulse_id pulse-id
+                                                          :card_id  card-id
+                                                          :position 0}]
+                   PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                   PulseChannelRecipient [_              {:user_id          (rasta-id)
+                                                          :pulse_channel_id pc-id}]]
+     [(send-pulse! (retrieve-pulse-or-alert pulse-id))
+      (db/exists? Pulse :id pulse-id)])))

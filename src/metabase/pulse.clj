@@ -8,10 +8,13 @@
              [util :as u]]
             [metabase.email.messages :as messages]
             [metabase.integrations.slack :as slack]
-            [metabase.models.card :refer [Card]]
+            [metabase.models
+             [card :refer [Card]]
+             [pulse :refer [Pulse]]]
             [metabase.pulse.render :as render]
             [metabase.util.urls :as urls]
-            [schema.core :as s])
+            [schema.core :as s]
+            [toucan.db :as db])
   (:import java.util.TimeZone))
 
 ;;; ## ---------------------------------------- PULSE SENDING ----------------------------------------
@@ -267,6 +270,10 @@
                       result)
         channel-ids (or channel-ids (mapv :id (:channels pulse)))]
     (when (should-send-notification? pulse results)
+
+      (when  (:alert_first_only pulse)
+        (db/delete! Pulse :id (:id pulse)))
+
       (for [channel-id channel-ids
             :let [{:keys [channel_type details recipients]} (some #(when (= channel-id (:id %)) %)
                                                                   (:channels pulse))]]
