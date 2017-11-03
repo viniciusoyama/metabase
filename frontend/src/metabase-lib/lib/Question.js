@@ -229,7 +229,7 @@ export default class Question {
             return ALERT_TYPE_PROGRESS_BAR_GOAL
         } else if (mode.name() === "timeseries") {
             const vizSettings = this.card().visualization_settings
-            if (vizSettings["graph.show_goal"] && vizSettings["graph.goal_value"]) {
+            if (vizSettings["graph.show_goal"] === true && _.isNumber(vizSettings["graph.goal_value"])) {
                 return ALERT_TYPE_TIMESERIES_GOAL
             }
         }
