@@ -82,29 +82,36 @@ const unsubscribeFromAlertRequest = new RestfulRequest({
 export const unsubscribeFromAlert = (alert) => {
     return async (dispatch, getState) => {
         await dispatch(unsubscribeFromAlertRequest.trigger(alert))
-        dispatch.action(UNSUBSCRIBE_FROM_ALERT)
+        dispatch.action(UNSUBSCRIBE_FROM_ALERT, alert.id)
     }
 }
 
-// TODO: the D of CRUD isn't yet supported by RestfulRequest – that could deserve some love
 export const DELETE_ALERT = 'metabase/alerts/DELETE_ALERT'
+const deleteAlertRequest = new RestfulRequest({
+    endpoint: AlertApi.delete,
+    actionPrefix: DELETE_ALERT,
+    storeAsDictionary: true
+})
 export const deleteAlert = (alertId) => {
     return async (dispatch, getState) => {
-        await dispatch(deletePulse(alertId));
+        await dispatch(deleteAlertRequest.trigger({ id: alertId }))
         dispatch.action(DELETE_ALERT, alertId)
     }
 }
+
+// removal from the result dictionary (not supported by RestfulRequest yet)
+const removeAlertReducer = (state, { payload: alertId }) => ({
+    ...state,
+    result: _.omit(state.result || {}, alertId)
+})
 
 const alerts = handleActions({
     ...fetchAllAlertsRequest.getReducers(),
     ...fetchAlertsForQuestionRequest.getReducers(),
     ...createAlertRequest.getReducers(),
     ...updateAlertRequest.getReducers(),
-    // removal from the result dictionary
-    [DELETE_ALERT]: (state, { payload: alertId }) => ({
-        ...state,
-        result: _.omit(state.result || {}, alertId)
-    })
+    [UNSUBSCRIBE_FROM_ALERT]: removeAlertReducer,
+    [DELETE_ALERT]: removeAlertReducer
 }, []);
 
 export default combineReducers({

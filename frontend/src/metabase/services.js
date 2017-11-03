@@ -189,7 +189,8 @@ export const AlertApi = {
     list_for_question:           GET("/api/alert/question/:questionId"),
     create:                     POST("/api/alert"),
     update:                      PUT("/api/alert/:id"),
-    unsubscribe:                 PUT("/api/alert/:id/unsubscribe")
+    delete:                   DELETE("/api/alert/:id"),
+    unsubscribe:                 PUT("/api/alert/:id/unsubscribe"),
 };
 
 export const SegmentApi = {
