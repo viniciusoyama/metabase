@@ -74,15 +74,14 @@ export const updateAlert = (alert) => {
 }
 
 export const UNSUBSCRIBE_FROM_ALERT = 'metabase/alerts/UNSUBSCRIBE_FROM_ALERT'
+const unsubscribeFromAlertRequest = new RestfulRequest({
+    endpoint: AlertApi.unsubscribe,
+    actionPrefix: UNSUBSCRIBE_FROM_ALERT,
+    storeAsDictionary: true
+})
 export const unsubscribeFromAlert = (alert) => {
     return async (dispatch, getState) => {
-        const user = getUser(getState())
-        await dispatch(updateAlert({
-            ...alert,
-            channels: alert.channels.map(c => c.channel_type !== "email" ? c :
-                { ...c, recipients: c.recipients.filter(r => r.id !== user.id)}
-            )
-        }));
+        await dispatch(unsubscribeFromAlertRequest.trigger(alert))
         dispatch.action(UNSUBSCRIBE_FROM_ALERT)
     }
 }

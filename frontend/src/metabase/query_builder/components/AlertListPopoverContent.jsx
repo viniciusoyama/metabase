@@ -128,7 +128,7 @@ export class AlertListItem extends Component {
     }
 
     render() {
-        const { user, alert } = this.props
+        const { user, alert, highlight } = this.props
         const { editing, unsubscribed } = this.state
 
         const isAdmin = user.is_superuser
@@ -144,7 +144,7 @@ export class AlertListItem extends Component {
         }
 
         return (
-            <li className={cx("flex p3 text-grey-4 border-bottom", { "bg-light-blue": isCurrentUser && !isAdmin })}>
+            <li className={cx("flex p3 text-grey-4 border-bottom", { "bg-light-blue": highlight })}>
                 <Icon name="alert" size="20" />
                 <div className="full ml2">
                     <div className="flex align-top">

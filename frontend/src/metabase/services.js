@@ -188,7 +188,8 @@ export const AlertApi = {
     list:                        GET("/api/alert"),
     list_for_question:           GET("/api/alert/question/:questionId"),
     create:                     POST("/api/alert"),
-    update:                      PUT("/api/alert/:id")
+    update:                      PUT("/api/alert/:id"),
+    unsubscribe:                 PUT("/api/alert/:id/unsubscribe")
 };
 
 export const SegmentApi = {
