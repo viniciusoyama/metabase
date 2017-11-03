@@ -5,7 +5,7 @@ import { Link } from "react-router";
 
 import Settings from "metabase/lib/settings";
 
-export default class SetupMessage extends Component {
+export default class ChannelSetupMessage extends Component {
     static propTypes = {
         user: PropTypes.object.isRequired,
         channels: PropTypes.array.isRequired

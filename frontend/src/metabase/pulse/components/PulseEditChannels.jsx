@@ -5,13 +5,13 @@ import _ from "underscore";
 import { assoc, assocIn } from "icepick";
 
 import RecipientPicker from "./RecipientPicker.jsx";
-import SetupMessage from "./SetupMessage.jsx";
 
 import SchedulePicker from "metabase/components/SchedulePicker.jsx";
 import ActionButton from "metabase/components/ActionButton.jsx";
 import Select from "metabase/components/Select.jsx";
 import Toggle from "metabase/components/Toggle.jsx";
 import Icon from "metabase/components/Icon.jsx";
+import ChannelSetupMessage from "metabase/components/ChannelSetupMessage";
 
 import MetabaseAnalytics from "metabase/lib/analytics";
 
@@ -238,7 +238,7 @@ export default class PulseEditChannels extends Component {
                 : channels.length > 0 && !channelSpec.configured ?
                     <div className="p4 text-centered">
                         <h3 className="mb2">{channelSpec.name} needs to be set up by an administrator.</h3>
-                        <SetupMessage user={user} channels={[channelSpec.name]} />
+                        <ChannelSetupMessage user={user} channels={[channelSpec.name]} />
                     </div>
                 : null
                 }

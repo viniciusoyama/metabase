@@ -9,7 +9,7 @@ import { getQuestion } from "metabase/query_builder/selectors";
 import _ from "underscore";
 import PulseEditChannels from "metabase/pulse/components/PulseEditChannels";
 import { fetchPulseFormInput, fetchUsers } from "metabase/pulse/actions";
-import { formInputSelector, userListSelector } from "metabase/pulse/selectors";
+import { formInputSelector, hasConfiguredChannelSelector, userListSelector } from "metabase/pulse/selectors";
 import DeleteModalWithConfirm from "metabase/components/DeleteModalWithConfirm";
 import ModalWithTrigger from "metabase/components/ModalWithTrigger";
 import { inflect } from "metabase/lib/formatting";
@@ -20,6 +20,7 @@ import RetinaImage from "react-retina-image";
 import Icon from "metabase/components/Icon";
 import MetabaseCookies from "metabase/lib/cookies";
 import cxs from 'cxs';
+import ChannelSetupModal from "metabase/components/ChannelSetupModal";
 
 const getScheduleFromChannel = (channel) =>
     _.pick(channel, "schedule_day", "schedule_frame", "schedule_hour", "schedule_type")
@@ -27,7 +28,11 @@ const classes = cxs ({
     width: '162px',
 })
 
-@connect((state) => ({ question: getQuestion(state), user: getUser(state) }), { createAlert })
+@connect((state) => ({
+    question: getQuestion(state),
+    user: getUser(state),
+    hasConfiguredChannel: hasConfiguredChannelSelector(state)
+}), { createAlert })
 export class CreateAlertModalContent extends Component {
     // contains the first-time educational screen
     // ModalContent, parent uses ModalWithTrigger
@@ -87,9 +92,19 @@ export class CreateAlertModalContent extends Component {
     }
 
     render() {
-        const { question, onClose } = this.props
+        const { question, onClose, hasConfiguredChannel, user } = this.props
         const { alert, hasSeenEducationalScreen } = this.state
 
+        if (!hasConfiguredChannel) {
+            return (
+                <ChannelSetupModal
+                    user={user}
+                    onClose={onClose}
+                    entityNamePlural={t`alerts`}
+                    fullPageModal
+                />
+            )
+        }
         if (!hasSeenEducationalScreen) {
             return (
                 <ModalContent onClose={onClose}>

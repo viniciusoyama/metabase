@@ -1,5 +1,5 @@
-
 import { createSelector } from 'reselect';
+import _ from "underscore";
 
 const pulsesSelector = state => state.pulse.pulses;
 const pulseIdListSelector = state => state.pulse.pulseList;
@@ -18,6 +18,10 @@ const usersSelector        = state => state.pulse.users
 
 export const formInputSelector    = state => state.pulse.formInput
 
+export const hasConfiguredChannelSelector = createSelector(
+    [formInputSelector],
+    (formInput) => formInput.channels && _.some(Object.values(formInput.channels), (c) => c.configured)
+)
 const cardPreviewsSelector = state => state.pulse.cardPreviews
 
 const cardListSelector = createSelector(
@@ -34,8 +38,8 @@ const getPulseId = (state, props) => props.params.pulseId ? parseInt(props.param
 
 // LIST
 export const listPulseSelectors = createSelector(
-    [getPulseId, pulseListSelector, formInputSelector],
-    (pulseId, pulses, formInput) => ({ pulseId, pulses, formInput })
+    [getPulseId, pulseListSelector, formInputSelector, hasConfiguredChannelSelector],
+    (pulseId, pulses, formInput, hasConfiguredChannel) => ({ pulseId, pulses, formInput, hasConfiguredChannel })
 );
 
 // EDIT
