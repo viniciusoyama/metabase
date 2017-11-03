@@ -160,6 +160,10 @@ export default class Question {
         throw new Error("Unknown query type: " + datasetQuery.type);
     }
 
+    isNative(): Query {
+        return this.query() instanceof NativeQuery
+    }
+
     /**
      * Returns a new Question object with an updated query.
      * The query is saved to the `dataset_query` field of the Card object.
@@ -222,8 +226,9 @@ export default class Question {
     alertType(): ?AlertType {
         const mode = this.mode()
         const display = this.display()
+        const isNative = this.isNative()
 
-        if (mode.name() === "segment") {
+        if (mode.name() === "segment" || (isNative && display === "table")) {
             return ALERT_TYPE_ROWS
         } else if (display === "progress") {
             return ALERT_TYPE_PROGRESS_BAR_GOAL
