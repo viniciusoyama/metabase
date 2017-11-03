@@ -57,9 +57,12 @@
      :message-type :attachments
      :message      (messages/render-pulse-email timezone pulse results)}))
 
-(defn- create-alert-notification [{:keys [id name] :as pulse} results recipients]
+(defn- first-question-name [pulse]
+  (-> pulse :cards first :name))
+
+(defn- create-alert-notification [{:keys [id] :as pulse} results recipients]
   (log/debug (format "Sending Pulse (%d: %s) via Channel :email" id name))
-  (let [email-subject    (str "Alert: " name)
+  (let [email-subject    (str "Alert: " (first-question-name pulse))
         email-recipients (filterv u/is-email? (map :email recipients))
         timezone         (-> results first :card defaulted-timezone)]
     {:subject      email-subject
@@ -94,7 +97,7 @@
 (defn- create-slack-alert-notification [pulse results channel-id]
   (log/debug (u/format-color 'cyan "Sending Alert (%d: %s) via Slack" (:id pulse) (:name pulse)))
   {:channel-id channel-id
-   :message (str "Alert: " (:name pulse))
+   :message (str "Alert: " (first-question-name pulse))
    :attachments (create-slack-attachment-data results)})
 
 (defn- create-slack-pulse-notification [pulse results channel-id]

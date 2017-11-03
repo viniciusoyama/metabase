@@ -3944,6 +3944,7 @@ databaseChangeLog:
       id: 69
       author: senior
       comment: 'Added 0.27.0'
+      remarks: 'Add columns to the pulse table for alerts'
       changes:
         - addColumn:
             tableName: pulse
@@ -3972,3 +3973,18 @@ databaseChangeLog:
                   remarks: 'For a goal condition, alert when above the goal'
                   constraints:
                     nullable: true
+  - changeSet:
+      id: 70
+      author: senior
+      comment: 'Added 0.27.0'
+      remarks: 'Changes to the pulse table for alerts'
+      changes:
+        # This column was descoped before 0.27.0 and not released
+        - dropColumn:
+            tableName: pulse
+            columnName: alert_description
+        # There is no name for an alert, so this column is only required for pulses
+        - dropNotNullConstraint:
+            tableName: pulse
+            columnName: name
+            columnDataType: varchar(254)

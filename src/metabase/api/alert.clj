@@ -48,14 +48,12 @@
   (s/enum "rows" "goal"))
 
 (defn- only-alert-keys [request]
-  (select-keys request [:name :alert_condition :alert_description :alert_first_only :alert_above_goal]))
+  (select-keys request [:alert_condition :alert_first_only :alert_above_goal]))
 
 (api/defendpoint POST "/"
   "Create a new `Alert`."
-  [:as {{:keys [name alert_condition alert_description card channels alert_first_only alert_above_goal] :as req} :body}]
-  {name              su/NonBlankString
-   alert_condition   AlertConditions
-   alert_description su/NonBlankString
+  [:as {{:keys [alert_condition card channels alert_first_only alert_above_goal] :as req} :body}]
+  {alert_condition   AlertConditions
    alert_first_only  s/Bool
    alert_above_goal  (s/maybe s/Bool)
    card              su/Map
@@ -85,10 +83,8 @@
 
 (api/defendpoint PUT "/:id"
   "Update a `Alert` with ID."
-  [id :as {{:keys [name alert_condition alert_description card channels alert_first_only alert_above_goal card channels] :as req} :body}]
-  {name              su/NonBlankString
-   alert_condition   AlertConditions
-   alert_description su/NonBlankString
+  [id :as {{:keys [alert_condition card channels alert_first_only alert_above_goal card channels] :as req} :body}]
+  {alert_condition   AlertConditions
    alert_first_only  s/Bool
    alert_above_goal  (s/maybe s/Bool)
    card              su/Map

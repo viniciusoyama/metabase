@@ -183,9 +183,7 @@
   (test-setup
    (tt/with-temp* [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
                                                                           :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
-                   Pulse                 [{pulse-id :id} {:name             "Alert Name"
-                                                          :alert_condition  "rows"
-                                                          :alert_description "Alert on a thing"
+                   Pulse                 [{pulse-id :id} {:alert_condition  "rows"
                                                           :alert_first_only false}]
                    PulseCard             [pulse-card     {:pulse_id pulse-id
                                                           :card_id  card-id
@@ -198,7 +196,7 @@
 ;; Rows alert with data
 (expect
   [true
-   {:subject "Alert: Alert Name"
+   {:subject "Alert: Test card"
     :recipients [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
@@ -206,9 +204,7 @@
    true]
   (test-setup
    (tt/with-temp* [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
-                   Pulse                [{pulse-id :id} {:name "Alert Name"
-                                                         :alert_condition  "rows"
-                                                         :alert_description "Alert on a thing"
+                   Pulse                [{pulse-id :id} {:alert_condition  "rows"
                                                          :alert_first_only false}]
                    PulseCard             [_             {:pulse_id pulse-id
                                                          :card_id  card-id
@@ -226,7 +222,7 @@
 ;; Above goal alert with data
 (expect
   [true
-   {:subject      "Alert: Goal Alert Name"
+   {:subject      "Alert: Test card"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
@@ -237,9 +233,7 @@
                                                                                 :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
                                                                {:display :line
                                                                 :visualization_settings {:graph.show_goal true :graph.goal_value 5.9}})]
-                   Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
-                                                         :alert_condition   "goal"
-                                                         :alert_description "Alert when above goal"
+                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
                                                          :alert_first_only  false
                                                          :alert_above_goal  true}]
                    PulseCard             [_             {:pulse_id pulse-id
@@ -263,9 +257,7 @@
                                                                                 :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
                                                                {:display :area
                                                                 :visualization_settings {:graph.show_goal true :graph.goal_value 5.9}})]
-                   Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
-                                                         :alert_condition   "goal"
-                                                         :alert_description "Alert when above goal"
+                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
                                                          :alert_first_only  false
                                                          :alert_above_goal  true}]
                    PulseCard             [_             {:pulse_id pulse-id
@@ -284,9 +276,7 @@
                                                                                 :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
                                                                {:display :bar
                                                                 :visualization_settings {:graph.show_goal true :graph.goal_value 1.1}})]
-                   Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
-                                                         :alert_condition   "goal"
-                                                         :alert_description "Alert when below goal"
+                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
                                                          :alert_first_only  false
                                                          :alert_above_goal  false}]
                    PulseCard             [_             {:pulse_id pulse-id
@@ -300,7 +290,7 @@
 ;; Below goal alert with data
 (expect
   [true
-   {:subject      "Alert: Goal Alert Name"
+   {:subject      "Alert: Test card"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
@@ -311,9 +301,7 @@
                                                                                 :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
                                                                {:display                :line
                                                                 :visualization_settings {:graph.show_goal true :graph.goal_value 1.1}})]
-                   Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
-                                                         :alert_condition   "goal"
-                                                         :alert_description "Alert when below goal"
+                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
                                                          :alert_first_only  false
                                                          :alert_above_goal  false}]
                    PulseCard             [_             {:pulse_id pulse-id
@@ -436,9 +424,7 @@
 
 ;; Rows slack alert with data
 (tt/expect-with-temp [Card         [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
-                      Pulse        [{pulse-id :id} {:name "Alert Name"
-                                                    :alert_condition  "rows"
-                                                    :alert_description "Alert on a thing"
+                      Pulse        [{pulse-id :id} {:alert_condition  "rows"
                                                     :alert_first_only false}]
                       PulseCard    [_             {:pulse_id pulse-id
                                                    :card_id  card-id
@@ -447,7 +433,7 @@
                                                    :channel_type "slack"
                                                    :details {:channel "#general"}}]]
   [{:channel-id "#general",
-    :message "Alert: Alert Name",
+    :message "Alert: Test card",
     :attachments [{:title "Test card", :attachment-bytes-thunk true,
                    :title_link (str "https://metabase.com/testmb/question/" card-id)
                    :attachment-name "image.png", :channel-id "FOO",
@@ -468,7 +454,7 @@
 ;; Above goal alert with a progress bar
 (expect
   [true
-   {:subject      "Alert: Goal Alert Name"
+   {:subject      "Alert: Test card"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    1
@@ -477,9 +463,7 @@
    (tt/with-temp* [Card                 [{card-id :id}  (merge (venues-query "max")
                                                                {:display                :progress
                                                                 :visualization_settings {:progress.goal 3}})]
-                   Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
-                                                         :alert_condition   "goal"
-                                                         :alert_description "Alert when above goal"
+                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
                                                          :alert_first_only  false
                                                          :alert_above_goal  true}]
                    PulseCard             [_             {:pulse_id pulse-id
@@ -498,7 +482,7 @@
 ;; Below goal alert with progress bar
 (expect
   [true
-   {:subject      "Alert: Goal Alert Name"
+   {:subject      "Alert: Test card"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    1
@@ -507,9 +491,7 @@
    (tt/with-temp* [Card                 [{card-id :id}  (merge (venues-query "min")
                                                                {:display                :progress
                                                                 :visualization_settings {:progress.goal 2}})]
-                   Pulse                [{pulse-id :id} {:name              "Goal Alert Name"
-                                                         :alert_condition   "goal"
-                                                         :alert_description "Alert when below goal"
+                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
                                                          :alert_first_only  false
                                                          :alert_above_goal  false}]
                    PulseCard             [_             {:pulse_id pulse-id
@@ -528,7 +510,7 @@
 ;; Rows alert, first run only with data
 (expect
   [true
-   {:subject "Alert: Alert Name"
+   {:subject "Alert: Test card"
     :recipients [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
@@ -537,9 +519,7 @@
    false]
   (test-setup
    (tt/with-temp* [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
-                   Pulse                [{pulse-id :id} {:name "Alert Name"
-                                                         :alert_condition  "rows"
-                                                         :alert_description "Alert on a thing"
+                   Pulse                [{pulse-id :id} {:alert_condition  "rows"
                                                          :alert_first_only true}]
                    PulseCard             [_             {:pulse_id pulse-id
                                                          :card_id  card-id
@@ -561,9 +541,7 @@
   (test-setup
    (tt/with-temp* [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
                                                                           :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
-                   Pulse                 [{pulse-id :id} {:name             "Alert Name"
-                                                          :alert_condition  "rows"
-                                                          :alert_description "Alert on a thing"
+                   Pulse                 [{pulse-id :id} {:alert_condition  "rows"
                                                           :alert_first_only true}]
                    PulseCard             [pulse-card     {:pulse_id pulse-id
                                                           :card_id  card-id

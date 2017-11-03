@@ -41,72 +41,47 @@
 ;; ## POST /api/alert
 
 (expect
-  {:errors {:name "value must be a non-blank string."}}
-  ((user->client :rasta) :post 400 "alert" {}))
-
-(expect
   {:errors {:alert_condition "value must be one of: `goal`, `rows`."}}
-  ((user->client :rasta) :post 400 "alert" {:name "abc"}))
-
-(expect
-  {:errors {:alert_condition "value must be one of: `goal`, `rows`."}}
-  ((user->client :rasta) :post 400 "alert" {:name            "abc"
-                                            :alert_condition "not rows"
+  ((user->client :rasta) :post 400 "alert" {:alert_condition "not rows"
                                             :card            "foobar"}))
 
 (expect
-  {:errors {:alert_description "value must be a non-blank string."}}
-  ((user->client :rasta) :post 400 "alert" {:name            "abc"
-                                            :alert_condition "rows"}))
-
-(expect
   {:errors {:alert_first_only "value must be a boolean."}}
-  ((user->client :rasta) :post 400 "alert" {:name              "abc"
-                                            :alert_condition   "rows"
-                                            :alert_description "foo"}))
+  ((user->client :rasta) :post 400 "alert" {:alert_condition   "rows"}))
 
 (expect
   {:errors {:card "value must be a map."}}
-  ((user->client :rasta) :post 400 "alert" {:name              "abc"
-                                            :alert_condition   "rows"
-                                            :alert_description "foo"
+  ((user->client :rasta) :post 400 "alert" {:alert_condition   "rows"
                                             :alert_first_only  false}))
 
 (expect
   {:errors {:channels "value must be an array. Each value must be a map. The array cannot be empty."}}
-  ((user->client :rasta) :post 400 "alert" {:name              "abc"
-                                            :alert_condition   "rows"
-                                            :alert_description "foo"
+  ((user->client :rasta) :post 400 "alert" {:alert_condition   "rows"
                                             :alert_first_only  false
                                             :card              {:id 100}}))
 
 (expect
   {:errors {:channels "value must be an array. Each value must be a map. The array cannot be empty."}}
-  ((user->client :rasta) :post 400 "alert" {:name              "abc"
-                                            :alert_condition   "rows"
-                                            :alert_description "foo"
+  ((user->client :rasta) :post 400 "alert" {:alert_condition   "rows"
                                             :alert_first_only  false
                                             :card              {:id 100}
                                             :channels          "foobar"}))
 
 (expect
   {:errors {:channels "value must be an array. Each value must be a map. The array cannot be empty."}}
-  ((user->client :rasta) :post 400 "alert" {:name              "abc"
-                                            :alert_condition   "rows"
-                                            :alert_description "foo"
+  ((user->client :rasta) :post 400 "alert" {:alert_condition   "rows"
                                             :alert_first_only  false
                                             :card              {:id 100}
                                             :channels          ["abc"]}))
 
 (tt/expect-with-temp [Card [card1]]
   {:id                true
-   :name              "A Pulse"
+   :name              nil
    :creator_id        true
    :creator           (user-details (fetch-user :rasta))
    :created_at        true
    :updated_at        true
    :card              (pulse-card-details card1)
-   :alert_description "foo"
    :alert_condition   "rows"
    :alert_first_only  false
    :alert_above_goal  nil
@@ -122,9 +97,7 @@
    :skip_if_empty     true}
   (tu/with-model-cleanup [Pulse]
     (tu/boolean-ids-and-timestamps ((user->client :rasta) :post 200 "alert"
-                                    {:name              "A Pulse"
-                                     :card              {:id (:id card1)}
-                                     :alert_description "foo"
+                                    {:card              {:id (:id card1)}
                                      :alert_condition   "rows"
                                      :alert_first_only  false
                                      :alert_above_goal  nil
@@ -138,56 +111,36 @@
 ;; ## PUT /api/alert
 
 (expect
-  {:errors {:name "value must be a non-blank string."}}
+  {:errors {:alert_condition "value must be one of: `goal`, `rows`."}}
   ((user->client :rasta) :put 400 "alert/1" {}))
 
 (expect
   {:errors {:alert_condition "value must be one of: `goal`, `rows`."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name "abc"}))
-
-(expect
-  {:errors {:alert_condition "value must be one of: `goal`, `rows`."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name            "abc"
-                                             :alert_condition "not rows"}))
-
-(expect
-  {:errors {:alert_description "value must be a non-blank string."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name            "abc"
-                                             :alert_condition "rows"}))
+  ((user->client :rasta) :put 400 "alert/1" {:alert_condition "not rows"}))
 
 (expect
   {:errors {:alert_first_only "value must be a boolean."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name              "abc"
-                                             :alert_condition   "rows"
-                                             :alert_description "foo"}))
+  ((user->client :rasta) :put 400 "alert/1" {:alert_condition   "rows"}))
 (expect
   {:errors {:card "value must be a map."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name              "abc"
-                                             :alert_condition   "rows"
-                                             :alert_description "foo"
+  ((user->client :rasta) :put 400 "alert/1" {:alert_condition   "rows"
                                              :alert_first_only  false}))
 
 (expect
   {:errors {:card "value must be a map."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name              "abc"
-                                             :alert_condition   "rows"
-                                             :alert_description "foo"
+  ((user->client :rasta) :put 400 "alert/1" {:alert_condition   "rows"
                                              :alert_first_only  false
                                              :card              "foobar"}))
 
 (expect
   {:errors {:channels "value must be an array. Each value must be a map. The array cannot be empty."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name              "abc"
-                                             :alert_condition   "rows"
-                                             :alert_description "foo"
+  ((user->client :rasta) :put 400 "alert/1" {:alert_condition   "rows"
                                              :alert_first_only  false
                                              :card              {:id 100}}))
 
 (expect
   {:errors {:channels "value must be an array. Each value must be a map. The array cannot be empty."}}
-  ((user->client :rasta) :put 400 "alert/1" {:name              "abc"
-                                             :alert_condition   "rows"
-                                             :alert_description "foo"
+  ((user->client :rasta) :put 400 "alert/1" {:alert_condition   "rows"
                                              :alert_first_only  false
                                              :card              {:id 100}
                                              :channels          "foobar"}))
@@ -196,17 +149,14 @@
   {:errors {:channels "value must be an array. Each value must be a map. The array cannot be empty."}}
   ((user->client :rasta) :put 400 "alert/1" {:name              "abc"
                                              :alert_condition   "rows"
-                                             :alert_description "foo"
                                              :alert_first_only  false
                                              :card              {:id 100}
                                              :channels          ["abc"]}))
 
 ;; Non-admin users can update alerts they created
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_description "Foo"
-                                             :alert_condition   "rows"
+(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false
-                                             :creator_id        (user->id :rasta)
-                                             :name              "Original Alert Name"}]
+                                             :creator_id        (user->id :rasta)}]
                       Card  [{card-id :id :as card}]
                       PulseCard             [_             {:pulse_id pulse-id
                                                             :card_id  card-id
@@ -215,12 +165,11 @@
                       PulseChannelRecipient [{pcr-id :id}  {:user_id          (user->id :rasta)
                                                             :pulse_channel_id pc-id}]]
   {:id                true
-   :name              "Updated Pulse"
+   :name              nil
    :creator_id        true
    :creator           (user-details (fetch-user :rasta))
    :created_at        true
    :updated_at        true
-   :alert_description "Foo"
    :alert_condition   "rows"
    :alert_first_only  false
    :alert_above_goal  nil
@@ -239,7 +188,6 @@
     (tu/boolean-ids-and-timestamps ((user->client :rasta) :put 200 (format "alert/%d" pulse-id)
                                     {:name              "Updated Pulse"
                                      :card              {:id (:id card)}
-                                     :alert_description "Foo"
                                      :alert_condition   "rows"
                                      :alert_first_only  false
                                      :channels          [{:id            pc-id
@@ -253,8 +201,7 @@
                                      :skip_if_empty     false}))))
 
 ;; Admin users can update any alert
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_description "Foo"
-                                             :alert_condition   "rows"
+(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false
                                              :creator_id        (user->id :rasta)
                                              :name              "Original Alert Name"}]
@@ -266,12 +213,11 @@
                       PulseChannelRecipient [{pcr-id :id}  {:user_id          (user->id :rasta)
                                                             :pulse_channel_id pc-id}]]
   {:id                true
-   :name              "Updated Pulse"
+   :name              nil
    :creator_id        true
    :creator           (user-details (fetch-user :rasta))
    :created_at        true
    :updated_at        true
-   :alert_description "Foo"
    :alert_condition   "rows"
    :alert_first_only  false
    :alert_above_goal  nil
@@ -288,9 +234,7 @@
    :skip_if_empty     true}
   (tu/with-model-cleanup [Pulse]
     (tu/boolean-ids-and-timestamps ((user->client :crowberto) :put 200 (format "alert/%d" pulse-id)
-                                    {:name              "Updated Pulse"
-                                     :card              {:id (:id card)}
-                                     :alert_description "Foo"
+                                    {:card              {:id (:id card)}
                                      :alert_condition   "rows"
                                      :alert_first_only  false
                                      :channels          [{:id            pc-id
@@ -304,8 +248,7 @@
                                      :skip_if_empty     false}))))
 
 ;; Non-admin users can't edit alerts they didn't create
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_description "Foo"
-                                             :alert_condition   "rows"
+(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false
                                              :creator_id        (user->id :crowberto)
                                              :name              "Original Alert Name"}]
@@ -319,9 +262,7 @@
   "You don't have permissions to do that."
   (tu/with-model-cleanup [Pulse]
     (tu/boolean-ids-and-timestamps ((user->client :rasta) :put 403 (format "alert/%d" pulse-id)
-                                    {:name              "Updated Pulse"
-                                     :card              {:id (:id card)}
-                                     :alert_description "Foo"
+                                    {:card              {:id (:id card)}
                                      :alert_condition   "rows"
                                      :alert_first_only  false
                                      :channels          [{:id            pc-id
@@ -335,8 +276,7 @@
                                      :skip_if_empty     false}))))
 
 ;; Non-admin users can't edit alerts if they're not in the recipient list
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_description "Foo"
-                                             :alert_condition   "rows"
+(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false
                                              :creator_id        (user->id :rasta)
                                              :name              "Original Alert Name"}]
@@ -350,9 +290,7 @@
   "You don't have permissions to do that."
   (tu/with-model-cleanup [Pulse]
     (tu/boolean-ids-and-timestamps ((user->client :rasta) :put 403 (format "alert/%d" pulse-id)
-                                    {:name              "Updated Pulse"
-                                     :card              {:id (:id card)}
-                                     :alert_description "Foo"
+                                    {:card              {:id (:id card)}
                                      :alert_condition   "rows"
                                      :alert_first_only  false
                                      :channels          [{:id            pc-id
@@ -377,13 +315,12 @@
 (expect
   [{:alert_condition "rows",
     :id true
-    :name "Alert Name",
+    :name nil
     :creator_id true
     :updated_at true,
     :alert_first_only false,
     :card {:name "Foo", :description nil, :display "table", :id true},
     :skip_if_empty false,
-    :alert_description "Alert when above goal",
     :created_at true,
     :alert_above_goal true
     :creator (user-details (fetch-user :rasta))
@@ -402,11 +339,10 @@
       :created_at true}]}]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id :id} {:name              "Alert Name"
-                                                          :alert_condition   "rows"
-                                                          :alert_description "Alert when above goal"
+                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
                                                           :alert_first_only  false
-                                                          :alert_above_goal  true}]
+                                                          :alert_above_goal  true
+                                                          :name              nil}]
                     PulseCard             [_             {:pulse_id pulse-id
                                                           :card_id  card-id
                                                           :position 0}]
@@ -420,9 +356,7 @@
   [1 0]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id :id} {:name              "Alert Name"
-                                                          :alert_condition   "rows"
-                                                          :alert_description "Alert when above goal"
+                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
                                                           :alert_first_only  false
                                                           :alert_above_goal  true
                                                           :creator_id        (user->id :rasta)}]
@@ -445,9 +379,7 @@
   [1 2]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id-1 :id} {:name              "Alert Name"
-                                                            :alert_condition   "rows"
-                                                            :alert_description "My rows alert"
+                    Pulse                [{pulse-id-1 :id} {:alert_condition   "rows"
                                                             :alert_first_only  false
                                                             :alert_above_goal  false
                                                             :creator_id        (user->id :rasta)}]
@@ -458,9 +390,7 @@
                     PulseChannelRecipient [_               {:user_id          (user->id :rasta)
                                                             :pulse_channel_id pc-id-1}]
                     ;; A separate admin created alert
-                    Pulse                [{pulse-id-2 :id} {:name              "Second alert"
-                                                            :alert_condition   "rows"
-                                                            :alert_description "This is a group alert, created by an admin"
+                    Pulse                [{pulse-id-2 :id} {:alert_condition   "rows"
                                                             :alert_first_only  false
                                                             :alert_above_goal  false
                                                             :creator_id        (user->id :crowberto)}]
@@ -489,9 +419,7 @@
   [#{"crowberto@metabase.com" "rasta@metabase.com"} #{"rasta@metabase.com"}]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id :id} {:name              "Alert Name"
-                                                          :alert_condition   "rows"
-                                                          :alert_description "Alert on a thing"
+                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
                                                           :alert_first_only  false}]
                     PulseCard             [_             {:pulse_id pulse-id
                                                           :card_id  card-id
@@ -512,9 +440,7 @@
   [1 nil 0]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id :id} {:name              "Alert Name"
-                                                          :alert_condition   "rows"
-                                                          :alert_description "Alert on a thing"
+                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
                                                           :alert_first_only  false
                                                           :creator_id        (user->id :rasta)}]
                     PulseCard             [_             {:pulse_id pulse-id
@@ -533,9 +459,7 @@
   [1 nil 0]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id :id} {:name              "Alert Name"
-                                                          :alert_condition   "rows"
-                                                          :alert_description "Alert on a thing"
+                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
                                                           :alert_first_only  false
                                                           :creator_id        (user->id :crowberto)}]
                     PulseCard             [_             {:pulse_id pulse-id
@@ -558,9 +482,7 @@
   [1 nil 0]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id :id} {:name              "Alert Name"
-                                                          :alert_condition   "rows"
-                                                          :alert_description "Alert on a thing"
+                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
                                                           :alert_first_only  false
                                                           :creator_id        (user->id :rasta)}]
                     PulseCard             [_             {:pulse_id pulse-id
