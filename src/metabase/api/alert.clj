@@ -12,6 +12,7 @@
             [metabase.api
              [common :as api]
              [pulse :as pulse-api]]
+            [metabase.email.messages :as messages]
             [metabase.integrations.slack :as slack]
             [metabase.models
              [card :refer [Card]]
@@ -59,10 +60,14 @@
    card              su/Map
    channels          (su/non-empty [su/Map])}
   (pulse-api/check-card-read-permissions [card])
-  (api/check-500
-   (-> req
-       only-alert-keys
-       (pulse/create-alert! api/*current-user-id* (u/get-id card) channels))))
+  (let [new-alert (api/check-500
+                   (-> req
+                       only-alert-keys
+                       (pulse/create-alert! api/*current-user-id* (u/get-id card) channels)))]
+    (when (email/email-configured?)
+      (messages/send-new-alert-email! new-alert))
+
+    new-alert))
 
 (defn- recipient-ids [{:keys [channels] :as alert}]
   (reduce (fn [acc {:keys [channel_type recipients]}]

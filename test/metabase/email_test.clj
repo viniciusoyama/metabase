@@ -2,6 +2,7 @@
   "Various helper functions for testing email functionality."
   ;; TODO - Move to something like `metabase.test.util.email`?
   (:require [expectations :refer :all]
+            [medley.core :as m]
             [metabase.email :as email]
             [metabase.test.util :as tu]))
 
@@ -44,6 +45,24 @@
   {:style/indent 0}
   `(do-with-fake-inbox (fn [] ~@body)))
 
+(defn- create-email-body->regex-fn
+  "Returns a function expecting the email body structure. It will apply the regexes in `regex-seq` over the body and
+  return map of the stringified regex as the key and a boolean as the value. True if it returns results via `re-find`
+  false otherwise."
+  [regex-seq]
+  (fn [message-body-seq]
+    (let [{message-body :content} (first message-body-seq)]
+      (zipmap (map str regex-seq)
+              (map #(boolean (re-find % message-body)) regex-seq)))))
+
+(defn regex-email-bodies
+  "Takes a seq of regexes `regex-seq` that will will be applied to each email body in the fake inbox. The body will be
+  replaced by a map with the stringified regex as it's key and a boolean indicated that the regex returned results."
+  [& regexes]
+  (let [email-body->regex-boolean (create-email-body->regex-fn regexes)]
+    (m/map-vals (fn [emails-for-recipient]
+                  (map #(update % :body email-body->regex-boolean) emails-for-recipient))
+                @inbox)))
 
 ;; simple test of email sending capabilities
 (expect

@@ -1,6 +1,7 @@
 (ns metabase.api.alert-test
   (:require [expectations :refer :all]
             [metabase
+             [email-test :as et]
              [http-client :as http]
              [middleware :as middleware]]
             [metabase.models
@@ -74,39 +75,106 @@
                                             :card              {:id 100}
                                             :channels          ["abc"]}))
 
-(tt/expect-with-temp [Card [card1]]
-  {:id                true
-   :name              nil
-   :creator_id        true
-   :creator           (user-details (fetch-user :rasta))
-   :created_at        true
-   :updated_at        true
-   :card              (pulse-card-details card1)
-   :alert_condition   "rows"
-   :alert_first_only  false
-   :alert_above_goal  nil
-   :channels          [(merge pulse-channel-defaults
-                              {:channel_type  "email"
-                               :schedule_type "daily"
-                               :schedule_hour 12
-                               :recipients    []
-                               :updated_at    true,
-                               :pulse_id      true,
-                               :id            true,
-                               :created_at    true})]
-   :skip_if_empty     true}
-  (tu/with-model-cleanup [Pulse]
-    (tu/boolean-ids-and-timestamps ((user->client :rasta) :post 200 "alert"
+(defmacro ^:private create-alert-test-setup
+  "Macro that will cleanup any created pulses and setups a fake-inbox to validate emails are sent for new alerts"
+  [& body]
+  `(tu/with-model-cleanup [Pulse]
+     (tu/with-temporary-setting-values [~'site-url "https://metabase.com/testmb"]
+       (et/with-fake-inbox
+         ~@body))))
+
+(tt/expect-with-temp [Card [card1 {:name "My question"}]]
+  [{:id                true
+    :name              nil
+    :creator_id        true
+    :creator           (user-details (fetch-user :rasta))
+    :created_at        true
+    :updated_at        true
+    :card              (pulse-card-details card1)
+    :alert_condition   "rows"
+    :alert_first_only  false
+    :alert_above_goal  nil
+    :channels          [(merge pulse-channel-defaults
+                               {:channel_type  "email"
+                                :schedule_type "daily"
+                                :schedule_hour 12
+                                :recipients    []
+                                :updated_at    true,
+                                :pulse_id      true,
+                                :id            true,
+                                :created_at    true})]
+    :skip_if_empty     true}
+   {"rasta@metabase.com"
+    [{:from "notifications@metabase.com",
+      :to ["rasta@metabase.com"],
+      :subject "You setup an alert",
+      :body {"https://metabase.com/testmb" true,
+             "has any results" true,
+             "My question" true}}]}]
+  (create-alert-test-setup
+   [(tu/boolean-ids-and-timestamps ((user->client :rasta) :post 200 "alert"
                                     {:card              {:id (:id card1)}
                                      :alert_condition   "rows"
                                      :alert_first_only  false
-                                     :alert_above_goal  nil
                                      :channels          [{:enabled       true
                                                           :channel_type  "email"
                                                           :schedule_type "daily"
                                                           :schedule_hour 12
                                                           :schedule_day  nil
-                                                          :recipients    []}]}))))
+                                                          :recipients    []}]}))
+    (et/regex-email-bodies #"https://metabase.com/testmb"
+                           #"has any results"
+                           #"My question")]))
+
+(tt/expect-with-temp [Card [card1 {:name "My question"
+                                   :display "line"}]]
+  {"rasta@metabase.com"
+   [{:from "notifications@metabase.com",
+     :to ["rasta@metabase.com"],
+     :subject "You setup an alert",
+     :body {"https://metabase.com/testmb" true,
+            "goes below its goal" true,
+            "My question" true}}]}
+  (create-alert-test-setup
+   ((user->client :rasta) :post 200 "alert"
+    {:card              {:id (:id card1)}
+     :alert_condition   "goal"
+     :alert_above_goal  false
+     :alert_first_only  false
+     :channels          [{:enabled       true
+                          :channel_type  "email"
+                          :schedule_type "daily"
+                          :schedule_hour 12
+                          :schedule_day  nil
+                          :recipients    []}]})
+   (et/regex-email-bodies #"https://metabase.com/testmb"
+                          #"goes below its goal"
+                          #"My question")))
+
+(tt/expect-with-temp [Card [card1 {:name "My question"
+                                   :display "bar"}]]
+  {"rasta@metabase.com"
+   [{:from "notifications@metabase.com",
+     :to ["rasta@metabase.com"],
+     :subject "You setup an alert",
+     :body {"https://metabase.com/testmb" true,
+            "meets its goal" true,
+            "My question" true}}]}
+  (create-alert-test-setup
+   ((user->client :rasta) :post 200 "alert"
+    {:card              {:id (:id card1)}
+     :alert_condition   "goal"
+     :alert_above_goal  true
+     :alert_first_only  false
+     :channels          [{:enabled       true
+                          :channel_type  "email"
+                          :schedule_type "daily"
+                          :schedule_hour 12
+                          :schedule_day  nil
+                          :recipients    []}]})
+   (et/regex-email-bodies #"https://metabase.com/testmb"
+                          #"meets its goal"
+                          #"My question")))
 
 ;; ## PUT /api/alert
 
