@@ -75,13 +75,17 @@
                                             :card              {:id 100}
                                             :channels          ["abc"]}))
 
+(defmacro ^:private with-test-email [& body]
+  `(tu/with-temporary-setting-values [~'site-url "https://metabase.com/testmb"]
+     (et/with-fake-inbox
+       ~@body)))
+
 (defmacro ^:private create-alert-test-setup
   "Macro that will cleanup any created pulses and setups a fake-inbox to validate emails are sent for new alerts"
   [& body]
   `(tu/with-model-cleanup [Pulse]
-     (tu/with-temporary-setting-values [~'site-url "https://metabase.com/testmb"]
-       (et/with-fake-inbox
-         ~@body))))
+     (with-test-email
+       ~@body)))
 
 (tt/expect-with-temp [Card [card1 {:name "My question"}]]
   [{:id                true
@@ -488,24 +492,33 @@
 
 ;; Alert has two recipients, remove one
 (expect
-  [#{"crowberto@metabase.com" "rasta@metabase.com"} #{"crowberto@metabase.com"}]
+  [#{"crowberto@metabase.com" "rasta@metabase.com"}
+   #{"crowberto@metabase.com"}
+   {"rasta@metabase.com" [{:from "notifications@metabase.com",
+                           :to ["rasta@metabase.com"],
+                           :subject "You unsubscribed from an alert",
+                           :body {"https://metabase.com/testmb" true,
+                                  "Foo" true}}]}]
   (data/with-db (data/get-or-create-database! defs/test-data)
-    (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
-                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
-                                                          :alert_first_only  false}]
-                    PulseCard             [_             {:pulse_id pulse-id
-                                                          :card_id  card-id
-                                                          :position 0}]
-                    PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                    PulseChannelRecipient [_             {:user_id          (user->id :rasta)
-                                                          :pulse_channel_id pc-id}]
-                    PulseChannelRecipient [_             {:user_id          (user->id :crowberto)
-                                                          :pulse_channel_id pc-id}]]
+    (with-test-email
+      (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
+                      Pulse                [{pulse-id :id} {:alert_condition   "rows"
+                                                            :alert_first_only  false}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id          (user->id :rasta)
+                                                            :pulse_channel_id pc-id}]
+                      PulseChannelRecipient [_             {:user_id          (user->id :crowberto)
+                                                            :pulse_channel_id pc-id}]]
 
-      [(recipient-emails ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
-       (do
-         ((user->client :rasta) :put 204 (format "alert/%d/unsubscribe" pulse-id))
-         (recipient-emails ((user->client :crowberto) :get 200 (format "alert/question/%d" card-id))))])))
+        [(recipient-emails ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         (do
+           ((user->client :rasta) :put 204 (format "alert/%d/unsubscribe" pulse-id))
+           (recipient-emails ((user->client :crowberto) :get 200 (format "alert/question/%d" card-id))))
+         (et/regex-email-bodies #"https://metabase.com/testmb"
+                                #"Foo")]))))
 
 ;; Testing delete of pulse by it's creator
 (expect

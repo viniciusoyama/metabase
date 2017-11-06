@@ -247,21 +247,44 @@
                                          (render/render-pulse-section timezone result)))))]
     (render-message-body "metabase/email/alert" (alert-context body pulse) (seq @images))))
 
+(defn- pulse->alert-condition-kwd [{:keys [alert_above_goal alert_condition card creator] :as alert}]
+  (if (= "goal" alert_condition)
+    (if (true? alert_above_goal)
+      :meets
+      :below)
+    :rows))
+
+(defn- default-alert-context
+  ([alert]
+   (default-alert-context alert nil))
+  ([{{card-id :id, card-name :name} :card :as alert} alert-condition-map]
+   (merge {:questionURL (url/card-url card-id)
+           :questionName card-name}
+          (when alert-condition-map
+            {:alertCondition (get alert-condition-map (pulse->alert-condition-kwd alert))}))))
+
+(def ^:private alert-condition-text
+  {:meets "when this question meets its goal"
+   :below "when this question goes below its goal"
+   :rows  "whenever this question has any results"})
+
 (defn send-new-alert-email!
   "Send out the initial 'new alert' email to the `CREATOR` of the alert"
   [{:keys [alert_above_goal alert_condition card creator] :as alert}]
-  (let [{card-id :id, card-name :name, chart-type :display} card
-        message-body (stencil/render-file "metabase/email/alert_new_confirmation.mustache"
-                       {:questionURL (url/card-url card-id)
-                        :questionName card-name
-                        :alertCondition (if (= "goal" alert_condition)
-                                          (format "when this question %s its goal"
-                                                  (if (true? alert_above_goal)
-                                                    "meets"
-                                                    "goes below"))
-                                          "whenever this question has any results")})]
+  (let [{card-id :id, card-name :name, chart-type :display} card]
     (email/send-message!
-     :subject "You setup an alert"
-     :recipients [(:email creator)]
-     :message-type :html
-     :message message-body)))
+      :subject "You setup an alert"
+      :recipients [(:email creator)]
+      :message-type :html
+      :message (stencil/render-file "metabase/email/alert_new_confirmation.mustache"
+                 (default-alert-context alert alert-condition-text)))))
+
+(defn send-you-unsubscribed-alert-email!
+  "Send an email to `USER-ADDED` letting them know `ADMIN-ADDER` has added them to an existing alert"
+  [alert who-unsubscribed]
+  (email/send-message!
+    :subject "You unsubscribed from an alert"
+    :recipients [(:email who-unsubscribed)]
+    :message-type :html
+    :message (stencil/render-file "metabase/email/alert_unsubscribed.mustache"
+               (default-alert-context alert))))

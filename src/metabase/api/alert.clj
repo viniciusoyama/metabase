@@ -106,9 +106,12 @@
   (api/check (not api/*is-superuser?*)
     [400 "Admin user are not allowed to unsubscribe from alerts"])
   (assert (integer? id))
-  (api/read-check Pulse id)
-  (pulse/unsubscribe-from-alert id api/*current-user-id*)
-  api/generic-204-no-content)
+  (let [alert (pulse/retrieve-alert id)]
+    (api/read-check alert)
+    (pulse/unsubscribe-from-alert id api/*current-user-id*)
+    (when (email/email-configured?)
+      (messages/send-you-unsubscribed-alert-email! alert @api/*current-user*))
+    api/generic-204-no-content))
 
 (api/defendpoint DELETE "/:id"
   [id]
