@@ -24,6 +24,7 @@ import Icon from "metabase/components/Icon";
 import MetabaseCookies from "metabase/lib/cookies";
 import cxs from 'cxs';
 import ChannelSetupModal from "metabase/components/ChannelSetupModal";
+import { getAlertError } from "metabase/alert/selectors";
 
 const getScheduleFromChannel = (channel) =>
     _.pick(channel, "schedule_day", "schedule_frame", "schedule_hour", "schedule_type")
@@ -38,6 +39,7 @@ const classes = cxs ({
     hasLoadedChannelInfo: hasLoadedChannelInfoSelector(state),
     hasConfiguredAnyChannel: hasConfiguredAnyChannelSelector(state),
     hasConfiguredEmailChannel: hasConfiguredEmailChannelSelector(state),
+    alertError: getAlertError(state)
 }), { createAlert, fetchPulseFormInput })
 export class CreateAlertModalContent extends Component {
     // contains the first-time educational screen
@@ -105,6 +107,7 @@ export class CreateAlertModalContent extends Component {
     onCreateAlert = async () => {
         const { createAlert, onClose } = this.props
         const { alert } = this.state
+
         await createAlert(alert)
         // should close be triggered manually like this
         // but the creation notification would appear automatically ...?
@@ -126,7 +129,8 @@ export class CreateAlertModalContent extends Component {
             hasConfiguredEmailChannel,
             isAdmin,
             user,
-            hasLoadedChannelInfo
+            hasLoadedChannelInfo,
+            alertError
         } = this.props
         const { alert, hasSeenEducationalScreen } = this.state
 
@@ -165,10 +169,11 @@ export class CreateAlertModalContent extends Component {
                         onDone={this.onCreateAlert}
                     />
                     <div className="flex">
-                        <div className="ml-auto">
-                            <Button onClick={onClose}>{t`Cancel`}</Button>
-                            <Button primary className="mt4 ml2" onClick={this.onCreateAlert}>{t`Done`}</Button>
+                        <div className="flex-full">
+                            { alertError && <span className="Form-message px2 Form-message--visible text-error">Alert creation failed</span> }
                         </div>
+                        <Button onClick={onClose}>{t`Cancel`}</Button>
+                        <Button primary className="mt4 ml2" onClick={this.onCreateAlert}>{t`Done`}</Button>
                     </div>
                 </div>
             </ModalContent>
@@ -216,7 +221,8 @@ export class AlertEducationalScreen extends Component {
 @connect((state) => ({
     user: getUser(state),
     isAdmin: getUserIsAdmin(state),
-    question: getQuestion(state)
+    question: getQuestion(state),
+    alertError: getAlertError(state)
 }), { updateAlert, deleteAlert })
 export class UpdateAlertModalContent extends Component {
     props: {
@@ -250,7 +256,7 @@ export class UpdateAlertModalContent extends Component {
     }
 
     render() {
-        const { onClose, question, alert, user, isAdmin } = this.props
+        const { onClose, question, alert, user, isAdmin, alertError } = this.props
         const { modifiedAlert } = this.state
 
         const isCurrentUser = alert.creator.id === user.id
@@ -270,11 +276,12 @@ export class UpdateAlertModalContent extends Component {
                     />
                     { isAdmin && <DeleteAlertSection alert={alert} onDeleteAlert={this.onDeleteAlert} /> }
 
-                    <div className="flex">
-                        <div className="ml-auto">
-                            <Button onClick={onClose}>{t`Cancel`}</Button>
-                            <Button primary className="mt4 ml2" onClick={this.onUpdateAlert}>{t`Save changes`}</Button>
+                    <div className="flex align-center mt4">
+                        <div className="flex-full">
+                            { alertError && <span className="Form-message px2 Form-message--visible text-error">Alert updating failed</span> }
                         </div>
+                        <Button onClick={onClose}>{t`Cancel`}</Button>
+                        <Button primary className="ml2" onClick={this.onUpdateAlert}>{t`Save changes`}</Button>
                     </div>
                 </div>
             </ModalContent>

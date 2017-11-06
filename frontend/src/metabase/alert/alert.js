@@ -6,8 +6,6 @@ import { addUndo, createUndo } from "metabase/redux/undo";
 
 import { AlertApi } from "metabase/services";
 import { RestfulRequest } from "metabase/lib/request";
-import { getUser } from "metabase/selectors/user";
-import { deletePulse } from "metabase/pulse/actions";
 import Icon from "metabase/components/Icon.jsx";
 
 export const FETCH_ALL_ALERTS = 'metabase/alerts/FETCH_ALL_ALERTS'

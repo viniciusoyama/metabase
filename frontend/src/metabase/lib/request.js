@@ -41,8 +41,8 @@ export class RestfulRequest {
                 const result = await this.endpoint(params)
                 dispatch.action(this.actions.requestSuccessful, { result })
             } catch(error) {
-                console.error(error)
                 dispatch.action(this.actions.requestFailed, { error })
+                throw error;
             }
 
         }
@@ -59,14 +59,15 @@ export class RestfulRequest {
     }
 
     getReducers = () => ({
-        [this.actions.requestStarted]: (state) => ({...state, loading: true}),
+        [this.actions.requestStarted]: (state) => ({ ...state, loading: true, error: null }),
         [this.actions.requestSuccessful]: (state, { payload: { result }}) => ({
             ...state,
             [this.resultPropName]: this.storeAsDictionary
                 ? this.mergeToDictionary(state[this.resultPropName], result)
                 : result,
             loading: false,
-            fetched: true
+            fetched: true,
+            error: null
         }),
         [this.actions.requestFailed]: (state, { payload: { error } }) => ({
             ...state,
@@ -124,8 +125,8 @@ export class BackgroundJobRequest {
                 const result = await this._pollForResult(newJobId)
                 dispatch.action(this.actions.requestSuccessful, { result })
             } catch(error) {
-                console.error(error)
                 dispatch.action(this.actions.requestFailed, { error })
+                throw error;
             }
         }
     }
@@ -146,6 +147,8 @@ export class BackgroundJobRequest {
 
                     if (response.status === 'done') {
                         resolve(response.result)
+                    } else if (response.status === 'error') {
+                       throw new Error(response.result.cause)
                     } else if (response.status === 'result-not-available') {
                         // The job result has been deleted; this is an unexpected state as we just
                         // created the job so simply throw a descriptive error
@@ -166,12 +169,13 @@ export class BackgroundJobRequest {
     reset = () => (dispatch) => dispatch(this.actions.reset)
 
     getReducers = () => ({
-        [this.actions.requestStarted]: (state) => ({...state, loading: true}),
+        [this.actions.requestStarted]: (state) => ({...state, loading: true, error: null }),
         [this.actions.requestSuccessful]: (state, { payload: { result }}) => ({
             ...state,
             [this.resultPropName]: result,
             loading: false,
-            fetched: true
+            fetched: true,
+            error: null
         }),
         [this.actions.requestFailed]: (state, { payload: { error } }) => ({
             ...state,
