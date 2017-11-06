@@ -24,7 +24,7 @@ import Icon from "metabase/components/Icon";
 import MetabaseCookies from "metabase/lib/cookies";
 import cxs from 'cxs';
 import ChannelSetupModal from "metabase/components/ChannelSetupModal";
-import { getAlertError } from "metabase/alert/selectors";
+import ButtonWithStatus from "metabase/components/ButtonWithStatus";
 
 const getScheduleFromChannel = (channel) =>
     _.pick(channel, "schedule_day", "schedule_frame", "schedule_hour", "schedule_type")
@@ -38,8 +38,7 @@ const classes = cxs ({
     user: getUser(state),
     hasLoadedChannelInfo: hasLoadedChannelInfoSelector(state),
     hasConfiguredAnyChannel: hasConfiguredAnyChannelSelector(state),
-    hasConfiguredEmailChannel: hasConfiguredEmailChannelSelector(state),
-    alertError: getAlertError(state)
+    hasConfiguredEmailChannel: hasConfiguredEmailChannelSelector(state)
 }), { createAlert, fetchPulseFormInput })
 export class CreateAlertModalContent extends Component {
     // contains the first-time educational screen
@@ -129,8 +128,7 @@ export class CreateAlertModalContent extends Component {
             hasConfiguredEmailChannel,
             isAdmin,
             user,
-            hasLoadedChannelInfo,
-            alertError
+            hasLoadedChannelInfo
         } = this.props
         const { alert, hasSeenEducationalScreen } = this.state
 
@@ -166,14 +164,14 @@ export class CreateAlertModalContent extends Component {
                         alertType={question.alertType()}
                         alert={alert}
                         onAlertChange={this.onAlertChange}
-                        onDone={this.onCreateAlert}
                     />
-                    <div className="flex">
-                        <div className="flex-full">
-                            { alertError && <span className="Form-message px2 Form-message--visible text-error">Alert creation failed</span> }
-                        </div>
-                        <Button onClick={onClose}>{t`Cancel`}</Button>
-                        <Button primary className="mt4 ml2" onClick={this.onCreateAlert}>{t`Done`}</Button>
+                    <div className="flex align-center mt4">
+                        <div className="flex-full" />
+                        <Button onClick={onClose} className="mr2">{t`Cancel`}</Button>
+                        <ButtonWithStatus
+                            titleForState={{default: t`Done`}}
+                            onClickOperation={this.onCreateAlert}
+                        />
                     </div>
                 </div>
             </ModalContent>
@@ -222,7 +220,6 @@ export class AlertEducationalScreen extends Component {
     user: getUser(state),
     isAdmin: getUserIsAdmin(state),
     question: getQuestion(state),
-    alertError: getAlertError(state)
 }), { updateAlert, deleteAlert })
 export class UpdateAlertModalContent extends Component {
     props: {
@@ -256,7 +253,7 @@ export class UpdateAlertModalContent extends Component {
     }
 
     render() {
-        const { onClose, question, alert, user, isAdmin, alertError } = this.props
+        const { onClose, question, alert, user, isAdmin } = this.props
         const { modifiedAlert } = this.state
 
         const isCurrentUser = alert.creator.id === user.id
@@ -272,16 +269,16 @@ export class UpdateAlertModalContent extends Component {
                         alertType={question.alertType()}
                         alert={modifiedAlert}
                         onAlertChange={this.onAlertChange}
-                        onDone={this.onUpdateAlert}
                     />
                     { isAdmin && <DeleteAlertSection alert={alert} onDeleteAlert={this.onDeleteAlert} /> }
 
                     <div className="flex align-center mt4">
-                        <div className="flex-full">
-                            { alertError && <span className="Form-message px2 Form-message--visible text-error">Alert updating failed</span> }
-                        </div>
-                        <Button onClick={onClose}>{t`Cancel`}</Button>
-                        <Button primary className="ml2" onClick={this.onUpdateAlert}>{t`Save changes`}</Button>
+                        <div className="flex-full" />
+                        <Button onClick={onClose} className="mr2">{t`Cancel`}</Button>
+                        <ButtonWithStatus
+                            titleForState={{default: t`Save changes`}}
+                            onClickOperation={this.onUpdateAlert}
+                        />
                     </div>
                 </div>
             </ModalContent>
