@@ -8,6 +8,7 @@ import { DatasetQuery } from "metabase/meta/types/Card";
 import { CreateAlertModalContent } from "metabase/query_builder/components/AlertModals";
 import { Component } from "react/lib/ReactBaseClasses";
 import Modal from "metabase/components/Modal";
+import { ALERT_TYPE_ROWS } from "metabase-lib/lib/Alert";
 
 type Props = {
     question: Question,
@@ -38,7 +39,7 @@ export default class VisualizationResult extends Component {
 
         const noResults = datasetContainsNoResults(result.data);
         if (noResults) {
-            const supportsRowsPresentAlert = question.mode().name() === "segment" || (question.isNative() && question.display()=== "table")
+            const supportsRowsPresentAlert = question.alertType() === ALERT_TYPE_ROWS
 
             // successful query but there were 0 rows returned with the result
             return <div className="flex flex-full">

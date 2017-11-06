@@ -226,17 +226,18 @@ export default class Question {
     alertType(): ?AlertType {
         const mode = this.mode()
         const display = this.display()
-        const isNative = this.isNative()
 
-        if (mode.name() === "segment" || (isNative && display === "table")) {
-            return ALERT_TYPE_ROWS
-        } else if (display === "progress") {
+        if (display === "progress") {
             return ALERT_TYPE_PROGRESS_BAR_GOAL
         } else if (mode.name() === "timeseries") {
             const vizSettings = this.card().visualization_settings
             if (vizSettings["graph.show_goal"] === true && _.isNumber(vizSettings["graph.goal_value"])) {
                 return ALERT_TYPE_TIMESERIES_GOAL
+            } else {
+                // TODO: What should happen if you have timeseries but no goal set?
             }
+        } else {
+            return ALERT_TYPE_ROWS
         }
 
         return null
