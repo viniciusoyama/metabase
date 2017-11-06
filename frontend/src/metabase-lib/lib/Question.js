@@ -160,7 +160,7 @@ export default class Question {
         throw new Error("Unknown query type: " + datasetQuery.type);
     }
 
-    isNative(): Query {
+    isNative(): boolean {
         return this.query() instanceof NativeQuery
     }
 
@@ -227,11 +227,17 @@ export default class Question {
         const mode = this.mode()
         const display = this.display()
 
+        if (!this.canRun()) {
+            return null;
+        }
+
         if (display === "progress") {
             return ALERT_TYPE_PROGRESS_BAR_GOAL
-        } else if (mode.name() === "timeseries") {
+        } else if (mode && mode.name() === "timeseries") {
             const vizSettings = this.card().visualization_settings
-            if (vizSettings["graph.show_goal"] === true && _.isNumber(vizSettings["graph.goal_value"])) {
+            // NOTE Atte Keinänen 11/6/17: Seems that `graph.goal_value` setting can be missing if
+            // only the "Show goal" toggle has been toggled but "Goal value" value hasn't explicitly been set
+            if (vizSettings["graph.show_goal"] === true) {
                 return ALERT_TYPE_TIMESERIES_GOAL
             } else {
                 // TODO: What should happen if you have timeseries but no goal set?
