@@ -5,6 +5,7 @@
             [expectations :refer :all]
             [medley.core :as m]
             [metabase
+             [email-test :as et]
              [http-client :as http :refer :all]
              [middleware :as middleware]
              [util :as u]]
@@ -17,6 +18,10 @@
              [label :refer [Label]]
              [permissions :as perms]
              [permissions-group :as perms-group]
+             [pulse :as pulse :refer [Pulse]]
+             [pulse-card :refer [PulseCard]]
+             [pulse-channel :refer [PulseChannel]]
+             [pulse-channel-recipient :refer [PulseChannelRecipient]]
              [table :refer [Table]]
              [view-log :refer [ViewLog]]]
             [metabase.test
@@ -408,6 +413,170 @@
       ;; now check the metadata that was saved in the DB
       (db/select-one-field :result_metadata Card :id (u/get-id card)))))
 
+;; Validate archiving a card trigers alert deletion
+(expect
+  [{"crowberto@metabase.com" [{:from "notifications@metabase.com",
+                               :to ["crowberto@metabase.com"],
+                               :subject "One of your alerts has stopped working",
+                               :body {"the question was archived by Rasta Toucan" true}}],
+    "rasta@metabase.com" [{:from "notifications@metabase.com",
+                           :to ["rasta@metabase.com"],
+                           :subject "One of your alerts has stopped working",
+                           :body {"the question was archived by Rasta Toucan" true}}]}
+   nil]
+  (tt/with-temp* [Card  [{card-id :id :as card}]
+                  Pulse [{pulse-id :id}                 {:alert_condition   "rows"
+                                                         :alert_first_only  false
+                                                         :creator_id        (user->id :rasta)
+                                                         :name              "Original Alert Name"}]
+
+                  PulseCard             [_              {:pulse_id pulse-id
+                                                         :card_id  card-id
+                                                         :position 0}]
+                  PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                  PulseChannelRecipient [{pcr-id-1 :id} {:user_id          (user->id :crowberto)
+                                                         :pulse_channel_id pc-id}]
+                  PulseChannelRecipient [{pcr-id-2 :id} {:user_id          (user->id :rasta)
+                                                         :pulse_channel_id pc-id}]]
+    (et/with-fake-inbox
+      ((user->client :rasta) :put 200 (str "card/" card-id) {:archived true})
+      [(et/regex-email-bodies #"the question was archived by Rasta Toucan")
+       (Pulse pulse-id)])))
+
+;; Validate changing a display type trigers alert deletion
+(expect
+  [{"crowberto@metabase.com" [{:from "notifications@metabase.com",
+                               :to ["crowberto@metabase.com"],
+                               :subject "One of your alerts has stopped working",
+                               :body {"the question was edited by Rasta Toucan" true}}],
+    "rasta@metabase.com" [{:from "notifications@metabase.com",
+                           :to ["rasta@metabase.com"],
+                           :subject "One of your alerts has stopped working",
+                           :body {"the question was edited by Rasta Toucan" true}}]}
+   nil]
+  (tt/with-temp* [Card  [{card-id :id :as card}         {:display :table}]
+                  Pulse [{pulse-id :id}                 {:alert_condition   "rows"
+                                                         :alert_first_only  false
+                                                         :creator_id        (user->id :rasta)
+                                                         :name              "Original Alert Name"}]
+
+                  PulseCard             [_              {:pulse_id pulse-id
+                                                         :card_id  card-id
+                                                         :position 0}]
+                  PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                  PulseChannelRecipient [{pcr-id-1 :id} {:user_id          (user->id :crowberto)
+                                                         :pulse_channel_id pc-id}]
+                  PulseChannelRecipient [{pcr-id-2 :id} {:user_id          (user->id :rasta)
+                                                         :pulse_channel_id pc-id}]]
+    (et/with-fake-inbox
+      ((user->client :rasta) :put 200 (str "card/" card-id) {:display :line})
+      [(et/regex-email-bodies #"the question was edited by Rasta Toucan")
+       (Pulse pulse-id)])))
+
+;; Changing the display type from line to table should force a delete
+(expect
+  [{"rasta@metabase.com" [{:from    "notifications@metabase.com",
+                           :to      ["rasta@metabase.com"],
+                           :subject "One of your alerts has stopped working",
+                           :body    {"the question was edited by Rasta Toucan" true}}]}
+   nil]
+  (tt/with-temp* [Card  [{card-id :id :as card}       {:display                :line
+                                                       :visualization_settings {:graph.goal_value 10}}]
+                  Pulse [{pulse-id :id}               {:alert_condition  "goal"
+                                                       :alert_first_only false
+                                                       :creator_id       (user->id :rasta)
+                                                       :name             "Original Alert Name"}]
+                  PulseCard             [_            {:pulse_id pulse-id
+                                                       :card_id  card-id
+                                                       :position 0}]
+                  PulseChannel          [{pc-id :id}  {:pulse_id pulse-id}]
+                  PulseChannelRecipient [{pcr-id :id} {:user_id          (user->id :rasta)
+                                                       :pulse_channel_id pc-id}]]
+    (et/with-fake-inbox
+      ((user->client :rasta) :put 200 (str "card/" card-id) {:display :table})
+      [(et/regex-email-bodies #"the question was edited by Rasta Toucan")
+       (Pulse pulse-id)])))
+
+;; Changing the display type from line to area/bar is fine and doesn't delete the alert
+(expect
+  [{} true {} true]
+  (tt/with-temp* [Card  [{card-id :id :as card}       {:display                :line
+                                                       :visualization_settings {:graph.goal_value 10}}]
+                  Pulse [{pulse-id :id}               {:alert_condition  "goal"
+                                                       :alert_first_only false
+                                                       :creator_id       (user->id :rasta)
+                                                       :name             "Original Alert Name"}]
+                  PulseCard             [_            {:pulse_id pulse-id
+                                                       :card_id  card-id
+                                                       :position 0}]
+                  PulseChannel          [{pc-id :id}  {:pulse_id pulse-id}]
+                  PulseChannelRecipient [{pcr-id :id} {:user_id          (user->id :rasta)
+                                                       :pulse_channel_id pc-id}]]
+    (et/with-fake-inbox
+      [(do
+         ((user->client :rasta) :put 200 (str "card/" card-id) {:display :area})
+         (et/regex-email-bodies #"the question was edited by Rasta Toucan"))
+       (boolean (Pulse pulse-id))
+       (do
+         ((user->client :rasta) :put 200 (str "card/" card-id) {:display :bar})
+         (et/regex-email-bodies #"the question was edited by Rasta Toucan"))
+       (boolean (Pulse pulse-id))])))
+
+;; Removing the goal value will trigger the alert to be deleted
+(expect
+  [{"rasta@metabase.com" [{:from    "notifications@metabase.com",
+                           :to      ["rasta@metabase.com"],
+                           :subject "One of your alerts has stopped working",
+                           :body    {"the question was edited by Rasta Toucan" true}}]}
+   nil]
+  (tt/with-temp* [Card  [{card-id :id :as card}       {:display                :line
+                                                       :visualization_settings {:graph.goal_value 10}}]
+                  Pulse [{pulse-id :id}               {:alert_condition  "goal"
+                                                       :alert_first_only false
+                                                       :creator_id       (user->id :rasta)
+                                                       :name             "Original Alert Name"}]
+                  PulseCard             [_            {:pulse_id pulse-id
+                                                       :card_id  card-id
+                                                       :position 0}]
+                  PulseChannel          [{pc-id :id}  {:pulse_id pulse-id}]
+                  PulseChannelRecipient [{pcr-id :id} {:user_id          (user->id :rasta)
+                                                       :pulse_channel_id pc-id}]]
+    (et/with-fake-inbox
+      (et/with-fake-inbox
+        ((user->client :rasta) :put 200 (str "card/" card-id) {:visualization_settings {:something "else"}})
+        [(et/regex-email-bodies #"the question was edited by Rasta Toucan")
+         (Pulse pulse-id)]))))
+
+;; Adding an additional breakout will cause the alert to be removed
+(expect
+  [{"rasta@metabase.com" [{:from    "notifications@metabase.com",
+                           :to      ["rasta@metabase.com"],
+                           :subject "One of your alerts has stopped working",
+                           :body    {"the question was edited by Crowberto Corv" true}}]}
+   nil]
+  (tt/with-temp* [Database [{database-id :id}]
+                  Table    [{table-id :id}  {:db_id database-id}]
+                  Card  [{card-id :id :as card}       {:display                :line
+                                                       :visualization_settings {:graph.goal_value 10}
+                                                       :dataset_query (assoc-in (mbql-count-query database-id table-id)
+                                                                                [:query :breakout] [["datetime-field" (data/id :checkins :date) "hour"]])}]
+                  Pulse [{pulse-id :id}               {:alert_condition  "goal"
+                                                       :alert_first_only false
+                                                       :creator_id       (user->id :rasta)
+                                                       :name             "Original Alert Name"}]
+                  PulseCard             [_            {:pulse_id pulse-id
+                                                       :card_id  card-id
+                                                       :position 0}]
+                  PulseChannel          [{pc-id :id}  {:pulse_id pulse-id}]
+                  PulseChannelRecipient [{pcr-id :id} {:user_id          (user->id :rasta)
+                                                       :pulse_channel_id pc-id}]]
+    (et/with-fake-inbox
+      (et/with-fake-inbox
+        ((user->client :crowberto) :put 200 (str "card/" card-id) {:dataset_query (assoc-in (mbql-count-query database-id table-id)
+                                                                                        [:query :breakout] [["datetime-field" (data/id :checkins :date) "hour"]
+                                                                                              ["datetime-field" (data/id :checkins :date) "second"]])})
+        [(et/regex-email-bodies #"the question was edited by Crowberto Corv")
+         (Pulse pulse-id)]))))
 
 ;;; +------------------------------------------------------------------------------------------------------------------------+
 ;;; |                                              DELETING A CARD (DEPRECATED)                                              |

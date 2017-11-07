@@ -314,3 +314,25 @@
     :message-type :html
     :message (stencil/render-file "metabase/email/alert_you_were_added.mustache"
                (default-alert-context alert alert-condition-text))))
+
+(defn send-alert-stopped-because-archived-email!
+  "Email used to notify users when a card associated to their alert has been archived"
+  [alert user archiver]
+  (email/send-message!
+    :subject "One of your alerts has stopped working"
+    :recipients [(:email user)]
+    :message-type :html
+    :message (stencil/render-file "metabase/email/alert_stopped_working.mustache"
+               (assoc (default-alert-context alert)
+                 :deletionCause (format "the question was archived by %s %s" (:first_name archiver) (:last_name archiver))))))
+
+(defn send-alert-stopped-because-changed-email!
+  "Email used to notify users when a card associated to their alert changed in a way that invalidates their alert"
+  [alert user archiver]
+  (email/send-message!
+    :subject "One of your alerts has stopped working"
+    :recipients [(:email user)]
+    :message-type :html
+    :message (stencil/render-file "metabase/email/alert_stopped_working.mustache"
+               (assoc (default-alert-context alert)
+                 :deletionCause (format "the question was edited by %s %s" (:first_name archiver) (:last_name archiver))))))

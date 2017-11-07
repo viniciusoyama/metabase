@@ -91,7 +91,7 @@
   (hydrate pulse :creator :cards [:channels :recipients]))
 
 (defn- remove-alert-fields [pulse]
-  (dissoc pulse :alert_condition :alert_description :alert_above_goal :alert_first_only))
+  (dissoc pulse :alert_condition :alert_above_goal :alert_first_only))
 
 (defn retrieve-pulse
   "Fetch a single `Pulse` by its ID value."
