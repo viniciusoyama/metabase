@@ -1,5 +1,6 @@
 (ns metabase.pulse-test
   (:require [expectations :refer :all]
+            [medley.core :as m]
             [metabase.integrations.slack :as slack]
             [metabase.models
              [card :refer [Card]]
@@ -436,7 +437,9 @@
    true
    true]
   (test-setup
-   (let [[slack-data email-data] (send-pulse! (retrieve-pulse pulse-id))]
+   (let [pulse-data (send-pulse! (retrieve-pulse pulse-id))
+         slack-data (m/find-first #(contains? % :channel-id) pulse-data)
+         email-data (m/find-first #(contains? % :subject) pulse-data)]
      [(thunk->boolean slack-data)
       (every? produces-bytes? (:attachments slack-data))
       (select-keys email-data [:subject :recipients :message-type])
