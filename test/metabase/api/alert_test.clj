@@ -319,6 +319,124 @@
                                                           :details       {}}]
                                      :skip_if_empty     false}))))
 
+;; Admin users can add a recipieint, that recipient should be notified
+(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
+                                             :alert_first_only  false
+                                             :creator_id        (user->id :rasta)
+                                             :name              "Original Alert Name"}]
+                      Card  [{card-id :id :as card}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [{pcr-id :id}  {:user_id          (user->id :crowberto)
+                                                            :pulse_channel_id pc-id}]]
+  [{:id                true
+    :name              nil
+    :creator_id        true
+    :creator           (user-details (fetch-user :rasta))
+    :created_at        true
+    :updated_at        true
+    :alert_condition   "rows"
+    :alert_first_only  false
+    :alert_above_goal  nil
+    :card              (pulse-card-details card)
+    :channels          [(merge pulse-channel-defaults
+                               {:channel_type  "email"
+                                :schedule_type "hourly"
+                                :recipients    (mapv (comp #(dissoc % :last_login :is_qbnewb :is_superuser :date_joined)
+                                                           user-details
+                                                           fetch-user)
+                                                     [:crowberto :rasta])
+                                :updated_at    true,
+                                :pulse_id      true,
+                                :id            true,
+                                :created_at    true})]
+    :skip_if_empty     true}
+   {"rasta@metabase.com"
+    [{:from "notifications@metabase.com",
+      :to ["rasta@metabase.com"],
+      :subject "Crowberto Corv added you to an alert",
+      :body {"https://metabase.com/testmb" true, "now getting alerts" true}}]}]
+  (tu/with-model-cleanup [Pulse]
+    (with-test-email
+      [(tu/boolean-ids-and-timestamps ((user->client :crowberto) :put 200 (format "alert/%d" pulse-id)
+                                       {:card              {:id (:id card)}
+                                        :alert_condition   "rows"
+                                        :alert_first_only  false
+                                        :channels          [{:id            pc-id
+                                                             :enabled       true
+                                                             :channel_type  "email"
+                                                             :schedule_type "hourly"
+                                                             :schedule_hour 12
+                                                             :schedule_day  "mon"
+                                                             :recipients    [(fetch-user :crowberto)
+                                                                             (fetch-user :rasta)]
+                                                             :details       {}}]
+                                        :skip_if_empty     false}))
+       (et/regex-email-bodies #"https://metabase.com/testmb"
+                              #"now getting alerts")])))
+
+;; Admin users can remove a recipieint, that recipient should be notified
+(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition  "rows"
+                                             :alert_first_only false
+                                             :creator_id       (user->id :rasta)
+                                             :name             "Original Alert Name"}]
+                      Card  [{card-id :id :as card}]
+                      PulseCard             [_              {:pulse_id pulse-id
+                                                             :card_id  card-id
+                                                             :position 0}]
+                      PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                      PulseChannelRecipient [{pcr-id-1 :id} {:user_id          (user->id :crowberto)
+                                                             :pulse_channel_id pc-id}]
+                      PulseChannelRecipient [{pcr-id-2 :id} {:user_id         (user->id :rasta)
+                                                             :pulse_channel_id pc-id}]]
+  [{:id               true
+    :name             nil
+    :creator_id       true
+    :creator          (user-details (fetch-user :rasta))
+    :created_at       true
+    :updated_at       true
+    :alert_condition  "rows"
+    :alert_first_only false
+    :alert_above_goal nil
+    :card             (pulse-card-details card)
+    :channels         [(merge pulse-channel-defaults
+                              {:channel_type  "email"
+                               :schedule_type "hourly"
+                               :recipients    (mapv (comp #(dissoc % :last_login :is_qbnewb :is_superuser :date_joined)
+                                                          user-details
+                                                          fetch-user)
+                                                    [:crowberto])
+                               :updated_at    true,
+                               :pulse_id      true,
+                               :id            true,
+                               :created_at    true})]
+    :skip_if_empty    true}
+   {"rasta@metabase.com"
+    [{:from    "notifications@metabase.com",
+      :to      ["rasta@metabase.com"],
+      :subject "You’ve been unsubscribed from an alert",
+      :body    {"https://metabase.com/testmb" true,
+                "letting you know that Crowberto Corv" true}}]}]
+  (tu/with-model-cleanup [Pulse]
+    (with-test-email
+      [(tu/boolean-ids-and-timestamps ((user->client :crowberto) :put 200 (format "alert/%d" pulse-id)
+                                       {:card             {:id (:id card)}
+                                        :alert_condition  "rows"
+                                        :alert_first_only false
+                                        :channels         [{:id            pc-id
+                                                            :enabled       true
+                                                            :channel_type  "email"
+                                                            :schedule_type "hourly"
+                                                            :schedule_hour 12
+                                                            :schedule_day  "mon"
+                                                            :recipients    [(fetch-user :crowberto)]
+                                                            :details       {}}]
+                                        :skip_if_empty    false}))
+       (et/regex-email-bodies #"https://metabase.com/testmb"
+                              #"letting you know that Crowberto Corv")])))
+
 ;; Non-admin users can't edit alerts they didn't create
 (tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false

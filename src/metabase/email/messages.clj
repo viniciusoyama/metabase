@@ -280,7 +280,7 @@
                  (default-alert-context alert alert-condition-text)))))
 
 (defn send-you-unsubscribed-alert-email!
-  "Send an email to `USER-ADDED` letting them know `ADMIN-ADDER` has added them to an existing alert"
+  "Send an email to `WHO-UNSUBSCRIBED` letting them know they've unsubscribed themselves from `ALERT`"
   [alert who-unsubscribed]
   (email/send-message!
     :subject "You unsubscribed from an alert"
@@ -288,3 +288,24 @@
     :message-type :html
     :message (stencil/render-file "metabase/email/alert_unsubscribed.mustache"
                (default-alert-context alert))))
+
+(defn send-admin-unsubscribed-alert-email!
+  "Send an email to `USER-ADDED` letting them know `ADMIN` has unsubscribed them from `ALERT`"
+  [alert user-added admin]
+  (email/send-message!
+    :subject "You’ve been unsubscribed from an alert"
+    :recipients [(:email user-added)]
+    :message-type :html
+    :message (stencil/render-file "metabase/email/alert_admin_unsubscribed_you.mustache"
+               (assoc (default-alert-context alert)
+                 :adminName (str (:first_name admin) " " (:last_name admin))))))
+
+(defn send-you-were-added-alert-email!
+  "Send an email to `USER-ADDED` letting them know `ADMIN-ADDER` has added them to `ALERT`"
+  [alert user-added admin-adder]
+  (email/send-message!
+    :subject (format "%s %s added you to an alert" (:first_name admin-adder) (:last_name admin-adder))
+    :recipients [(:email user-added)]
+    :message-type :html
+    :message (stencil/render-file "metabase/email/alert_you_were_added.mustache"
+               (default-alert-context alert alert-condition-text))))

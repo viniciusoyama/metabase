@@ -1,7 +1,9 @@
 (ns metabase.api.alert
   "/api/alert endpoints"
-  (:require [compojure.core :refer [DELETE GET POST PUT]]
+  (:require [clojure.data :as data]
+            [compojure.core :refer [DELETE GET POST PUT]]
             [hiccup.core :refer [html]]
+            [medley.core :as m]
             [metabase
              [driver :as driver]
              [email :as email]
@@ -79,26 +81,52 @@
 (defn- check-alert-update-permissions
   "Admin users can update all alerts. Non-admin users can update alerts that they created as long as they are still a
   recipient of that alert"
-  [pulse-id]
+  [alert]
   (when-not api/*is-superuser?*
-    (let [{:keys [channels] :as alert} (pulse/retrieve-alert pulse-id)]
-      (api/write-check alert)
-      (api/check-403 (and (= api/*current-user-id* (:creator_id alert))
-                          (contains? (recipient-ids alert) api/*current-user-id*))))))
+    (api/write-check alert)
+    (api/check-403 (and (= api/*current-user-id* (:creator_id alert))
+                        (contains? (recipient-ids alert) api/*current-user-id*)))))
+
+(defn- email-channel [alert]
+  (m/find-first #(= :email (:channel_type %)) (:channels alert)))
+
+(defn- notify-recipient-changes! [old-alert updated-alert]
+  (let [{old-recipients :recipients} (email-channel old-alert)
+        {new-recipients :recipients} (email-channel updated-alert)
+        old-ids->users (zipmap (map :id old-recipients)
+                               old-recipients)
+        new-ids->users (zipmap (map :id new-recipients)
+                               new-recipients)
+        [removed-ids added-ids _] (data/diff (set (keys old-ids->users))
+                                             (set (keys new-ids->users)))]
+
+    (doseq [old-id removed-ids
+            :let [removed-user (get old-ids->users old-id)]]
+      (messages/send-admin-unsubscribed-alert-email! old-alert removed-user @api/*current-user*))
+
+    (doseq [new-id added-ids
+            :let [added-user (get new-ids->users new-id)]]
+      (messages/send-you-were-added-alert-email! updated-alert added-user @api/*current-user*))))
 
 (api/defendpoint PUT "/:id"
   "Update a `Alert` with ID."
   [id :as {{:keys [alert_condition card channels alert_first_only alert_above_goal card channels] :as req} :body}]
-  {alert_condition   AlertConditions
-   alert_first_only  s/Bool
-   alert_above_goal  (s/maybe s/Bool)
-   card              su/Map
-   channels          (su/non-empty [su/Map])}
-  (check-alert-update-permissions id)
-  (-> req
-      only-alert-keys
-      (assoc :id id :card (u/get-id card) :channels channels)
-      pulse/update-alert!))
+  {alert_condition  AlertConditions
+   alert_first_only s/Bool
+   alert_above_goal (s/maybe s/Bool)
+   card             su/Map
+   channels         (su/non-empty [su/Map])}
+  (let [old-alert     (pulse/retrieve-alert id)
+        _             (check-alert-update-permissions old-alert)
+        updated-alert (-> req
+                          only-alert-keys
+                          (assoc :id id :card (u/get-id card) :channels channels)
+                          pulse/update-alert!)]
+
+    (when (and api/*is-superuser?* (email/email-configured?))
+      (notify-recipient-changes! old-alert updated-alert))
+
+    updated-alert))
 
 (api/defendpoint PUT "/:id/unsubscribe"
   [id]
