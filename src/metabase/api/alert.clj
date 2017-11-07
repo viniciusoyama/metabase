@@ -90,6 +90,9 @@
 (defn- email-channel [alert]
   (m/find-first #(= :email (:channel_type %)) (:channels alert)))
 
+(defn- slack-channel [alert]
+  (m/find-first #(= :slack (:channel_type %)) (:channels alert)))
+
 (defn- notify-recipient-changes! [old-alert updated-alert]
   (let [{old-recipients :recipients} (email-channel old-alert)
         {new-recipients :recipients} (email-channel updated-alert)
@@ -128,6 +131,18 @@
 
     updated-alert))
 
+(defn- should-unsubscribe-delete?
+  "An alert should be deleted instead of unsubscribing if
+     - the unsubscriber is the creator
+     - they are the only recipient
+     - there is no slack channel selected"
+  [alert unsubscribing-user-id]
+  (let [{:keys [recipients]} (email-channel alert)]
+    (and (= unsubscribing-user-id (:creator_id alert))
+         (= 1 (count recipients))
+         (= unsubscribing-user-id (:id (first recipients)))
+         (nil? (slack-channel alert)))))
+
 (api/defendpoint PUT "/:id/unsubscribe"
   [id]
   ;; Admins are not allowed to unsubscribe from alerts, they should edit the alert
@@ -136,9 +151,14 @@
   (assert (integer? id))
   (let [alert (pulse/retrieve-alert id)]
     (api/read-check alert)
-    (pulse/unsubscribe-from-alert id api/*current-user-id*)
+
+    (if (should-unsubscribe-delete? alert api/*current-user-id*)
+      (db/delete! Pulse :id id)
+      (pulse/unsubscribe-from-alert id api/*current-user-id*))
+
     (when (email/email-configured?)
       (messages/send-you-unsubscribed-alert-email! alert @api/*current-user*))
+
     api/generic-204-no-content))
 
 (api/defendpoint DELETE "/:id"

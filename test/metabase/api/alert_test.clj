@@ -638,6 +638,100 @@
          (et/regex-email-bodies #"https://metabase.com/testmb"
                                 #"Foo")]))))
 
+;; Alert should be deleted if the creator unsubscribes and there's no one left
+(expect
+  [1
+   0
+   {"rasta@metabase.com" [{:from    "notifications@metabase.com",
+                           :to      ["rasta@metabase.com"],
+                           :subject "You unsubscribed from an alert",
+                           :body    {"https://metabase.com/testmb" true,
+                                     "Foo"                         true}}]}]
+  (data/with-db (data/get-or-create-database! defs/test-data)
+    (with-test-email
+      (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
+                      Pulse                [{pulse-id :id} {:alert_condition  "rows"
+                                                            :alert_first_only false
+                                                            :creator_id       (user->id :rasta)}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id     pulse-id
+                                                            :channel_type :email}]
+                      PulseChannelRecipient [_             {:user_id          (user->id :rasta)
+                                                            :pulse_channel_id pc-id}]]
+
+        [(count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         (do
+           ((user->client :rasta) :put 204 (format "alert/%d/unsubscribe" pulse-id))
+           (count ((user->client :crowberto) :get 200 (format "alert/question/%d" card-id))))
+         (et/regex-email-bodies #"https://metabase.com/testmb"
+                                #"Foo")]))))
+
+;; Alert should be not be deleted if there is a slack channel
+(expect
+  [1
+   1 ;<-- Alert should not be deleted
+   {"rasta@metabase.com" [{:from    "notifications@metabase.com",
+                           :to      ["rasta@metabase.com"],
+                           :subject "You unsubscribed from an alert",
+                           :body    {"https://metabase.com/testmb" true,
+                                     "Foo"                         true}}]}]
+  (data/with-db (data/get-or-create-database! defs/test-data)
+    (with-test-email
+      (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
+                      Pulse                [{pulse-id :id} {:alert_condition  "rows"
+                                                            :alert_first_only false
+                                                            :creator_id       (user->id :rasta)}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id-1 :id} {:pulse_id     pulse-id
+                                                            :channel_type :email}]
+                      PulseChannel          [{pc-id-2 :id} {:pulse_id     pulse-id
+                                                            :channel_type :slack}]
+                      PulseChannelRecipient [_             {:user_id          (user->id :rasta)
+                                                            :pulse_channel_id pc-id-1}]]
+
+        [(count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         (do
+           ((user->client :rasta) :put 204 (format "alert/%d/unsubscribe" pulse-id))
+           (count ((user->client :crowberto) :get 200 (format "alert/question/%d" card-id))))
+         (et/regex-email-bodies #"https://metabase.com/testmb"
+                                #"Foo")]))))
+
+;; Alert should be not be deleted if the unsubscriber isn't the creator
+(expect
+  [1
+   1 ;<-- Alert should not be deleted
+   {"rasta@metabase.com" [{:from    "notifications@metabase.com",
+                           :to      ["rasta@metabase.com"],
+                           :subject "You unsubscribed from an alert",
+                           :body    {"https://metabase.com/testmb" true,
+                                     "Foo"                         true}}]}]
+  (data/with-db (data/get-or-create-database! defs/test-data)
+    (with-test-email
+      (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
+                      Pulse                [{pulse-id :id} {:alert_condition  "rows"
+                                                            :alert_first_only false
+                                                            :creator_id       (user->id :crowberto)}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id-1 :id} {:pulse_id     pulse-id
+                                                            :channel_type :email}]
+                      PulseChannel          [{pc-id-2 :id} {:pulse_id     pulse-id
+                                                            :channel_type :slack}]
+                      PulseChannelRecipient [_             {:user_id          (user->id :rasta)
+                                                            :pulse_channel_id pc-id-1}]]
+
+        [(count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         (do
+           ((user->client :rasta) :put 204 (format "alert/%d/unsubscribe" pulse-id))
+           (count ((user->client :crowberto) :get 200 (format "alert/question/%d" card-id))))
+         (et/regex-email-bodies #"https://metabase.com/testmb"
+                                #"Foo")]))))
+
 ;; Testing delete of pulse by it's creator
 (expect
   [1 nil 0]
