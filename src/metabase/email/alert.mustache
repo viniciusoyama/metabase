@@ -1,6 +1,7 @@
 {{> metabase/email/_header}}
     <p><a href="{{questionURL}}">{{questionName}}</a> has {{alertCondition}}.</p>
-    <!-- @senior to-do: only show this next part if the alert was set up to only deliver the first time it triggered -->
+    {{#firstRunOnly?}}
     <p>We’ll stop sending you alerts about this question now.</p>
+    {{/firstRunOnly?}}
   {{{pulse}}}
 {{> metabase/email/_footer}}

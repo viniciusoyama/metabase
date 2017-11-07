@@ -257,14 +257,16 @@
 
 (defn render-alert-email
   "Take a pulse object and list of results, returns an array of attachment objects for an email"
-  [timezone alert results goal-value]
+  [timezone {:keys [alert_first_only] :as alert} results goal-value]
   (let [images       (atom {})
         body         (binding [render/*include-title* true
                                render/*render-img-fn* (partial render-image images)]
                        (vec (cons :div (for [result results]
                                          (render/render-pulse-section timezone result)))))
         message-ctx  (default-alert-context alert (alert-results-condition-text goal-value))]
-    (render-message-body "metabase/email/alert" (assoc message-ctx :pulse body) (seq @images))))
+    (render-message-body "metabase/email/alert"
+                         (assoc message-ctx :pulse body :firstRunOnly? alert_first_only)
+                         (seq @images))))
 
 (def ^:private alert-condition-text
   {:meets "when this question meets its goal"

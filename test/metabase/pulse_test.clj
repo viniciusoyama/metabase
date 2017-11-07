@@ -193,6 +193,22 @@
                                                           :pulse_channel_id pc-id}]]
      (send-pulse! (retrieve-pulse-or-alert pulse-id)))))
 
+(defn- rows-email-body?
+  [{:keys [content] :as message}]
+  (boolean (re-find #"has results for you" content)))
+
+(defn- goal-above-email-body?
+  [{:keys [content] :as message}]
+  (boolean (re-find #"has reached" content)))
+
+(defn- goal-below-email-body?
+  [{:keys [content] :as message}]
+  (boolean (re-find #"has gone below" content)))
+
+(defn- first-run-email-body?
+  [{:keys [content] :as message}]
+  (boolean (re-find #"stop sending you alerts" content)))
+
 ;; Rows alert with data
 (expect
   [true
@@ -200,6 +216,7 @@
     :recipients [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
+   true
    true
    true]
   (test-setup
@@ -217,7 +234,8 @@
         (select-keys result [:subject :recipients :message-type])
         (count (:message result))
         (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+        (attachment? (second (:message result)))
+        (rows-email-body? (first (:message result)))]))))
 
 ;; Above goal alert with data
 (expect
@@ -226,6 +244,7 @@
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
+   true
    true
    true]
   (test-setup
@@ -247,7 +266,8 @@
         (select-keys result [:subject :recipients :message-type])
         (count (:message result))
         (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+        (attachment? (second (:message result)))
+        (goal-above-email-body? (first (:message result)))]))))
 
 ;; Above goal alert, with no data above goal
 (expect
@@ -295,6 +315,7 @@
     :message-type :attachments}
    2
    true
+   true
    true]
   (test-setup
    (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-12" "2014-02-17"]
@@ -315,7 +336,8 @@
         (select-keys result [:subject :recipients :message-type])
         (count (:message result))
         (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+        (attachment? (second (:message result)))
+        (goal-below-email-body? (first (:message result)))]))))
 
 (defn- thunk->boolean [{:keys [attachments] :as result}]
   (assoc result :attachments (for [attachment-info attachments]
@@ -486,7 +508,8 @@
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    1
-   true]
+   true
+   false]
   (test-setup
    (tt/with-temp* [Card                 [{card-id :id}  (merge (venues-query "min")
                                                                {:display                :progress
@@ -504,7 +527,8 @@
        [(empty? no-more-results)
         (select-keys result [:subject :recipients :message-type])
         (count (:message result))
-        (email-body? (first (:message result)))]))))
+        (email-body? (first (:message result)))
+        (first-run-email-body? (first (:message result)))]))))
 
 
 ;; Rows alert, first run only with data
@@ -514,6 +538,7 @@
     :recipients [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
+   true
    true
    true
    false]
@@ -532,6 +557,7 @@
         (select-keys result [:subject :recipients :message-type])
         (count (:message result))
         (email-body? (first (:message result)))
+        (first-run-email-body? (first (:message result)))
         (attachment? (second (:message result)))
         (db/exists? Pulse :id pulse-id)]))))
 
