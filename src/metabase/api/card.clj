@@ -392,7 +392,9 @@
     (doseq [recipient (:recipients email-channel)]
       (notify-fn! alert recipient @api/*current-user*))))
 
-(defn- delete-alert-and-notify-archived! [alerts]
+(defn delete-alert-and-notify-archived!
+  "Removes all `ALERTS` and will email each recipient letting them know"
+  [alerts]
   (delete-alert-and-notify! messages/send-alert-stopped-because-archived-email! alerts))
 
 (defn- delete-alert-and-notify-changed! [alerts]

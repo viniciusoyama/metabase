@@ -1,11 +1,14 @@
 (ns metabase.api.collection
   "/api/collection endpoints."
   (:require [compojure.core :refer [GET POST PUT]]
-            [metabase.api.common :as api]
+            [metabase.api
+             [card :as card-api]
+             [common :as api]]
             [metabase.models
              [card :refer [Card]]
              [collection :as collection :refer [Collection]]
-             [interface :as mi]]
+             [interface :as mi]
+             [pulse :as pulse]]
             [metabase.util.schema :as su]
             [schema.core :as s]
             [toucan
@@ -45,14 +48,20 @@
   {name su/NonBlankString, color collection/hex-color-regex, description (s/maybe su/NonBlankString), archived (s/maybe s/Bool)}
   ;; you have to be a superuser to modify a Collection itself, but `/collection/:id/` perms are sufficient for adding/removing Cards
   (api/check-superuser)
-  (api/check-exists? Collection id)
-  (db/update! Collection id
-    :name        name
-    :color       color
-    :description description
-    :archived    (if (nil? archived)
-                   false
-                   archived))
+  (api/api-let [404 "Not Found"] [collection-before-update (Collection id)]
+    (db/update! Collection id
+      :name        name
+      :color       color
+      :description description
+      :archived    (if (nil? archived)
+                     false
+                     archived))
+    (when (and (not (:archived collection-before-update))
+               archived)
+      (let [alerts (apply pulse/retrieve-alerts-for-card (db/select-ids Card, :collection_id id))]
+        (when (seq alerts)
+          (card-api/delete-alert-and-notify-archived! alerts)))))
+
   ;; return the updated object
   (Collection id))
 

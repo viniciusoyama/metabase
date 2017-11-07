@@ -165,14 +165,14 @@
 
 (defn retrieve-alerts-for-card
   "Find all alerts for `CARD-ID`, used for admin users"
-  [card-id]
+  [& card-ids]
   (map (comp pulse->alert hydrate-pulse #(into (PulseInstance.) %))
        (db/query {:select [:p.*]
                   :from   [[Pulse :p]]
                   :join   [[PulseCard :pc] [:= :p.id :pc.pulse_id]]
                   :where  [:and
                            [:not= :p.alert_condition nil]
-                           [:= :pc.card_id card-id]]})))
+                           [:in :pc.card_id card-ids]]})))
 
 ;;; ------------------------------------------------------------ Other Persistence Functions ------------------------------------------------------------
 
