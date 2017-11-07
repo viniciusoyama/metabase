@@ -227,27 +227,9 @@
                                          (render/render-pulse-section timezone result)))))]
     (render-message-body "metabase/email/pulse" (pulse-context body pulse) (seq @images))))
 
-(defn- alert-context [body pulse]
-  (merge {:emailType    "alert"
-          :pulse        (html body)
-          :pulseName    (:name pulse)
-          :alertDescription (:alert_description pulse)
-          :sectionStyle render/section-style
-          :colorGrey4   render/color-gray-4
-          :logoFooter   true}
-         (random-quote-context)))
-
-(defn render-alert-email
-  "Take a pulse object and list of results, returns an array of attachment objects for an email"
-  [timezone pulse results]
-  (let [images       (atom {})
-        body         (binding [render/*include-title* true
-                               render/*render-img-fn* (partial render-image images)]
-                       (vec (cons :div (for [result results]
-                                         (render/render-pulse-section timezone result)))))]
-    (render-message-body "metabase/email/alert" (alert-context body pulse) (seq @images))))
-
-(defn- pulse->alert-condition-kwd [{:keys [alert_above_goal alert_condition card creator] :as alert}]
+(defn pulse->alert-condition-kwd
+  "Given an `ALERT` return a keyword representing what kind of goal needs to be met."
+  [{:keys [alert_above_goal alert_condition card creator] :as alert}]
   (if (= "goal" alert_condition)
     (if (true? alert_above_goal)
       :meets
@@ -259,9 +241,30 @@
    (default-alert-context alert nil))
   ([{{card-id :id, card-name :name} :card :as alert} alert-condition-map]
    (merge {:questionURL (url/card-url card-id)
-           :questionName card-name}
+           :questionName card-name
+           :emailType    "alert"
+           :sectionStyle render/section-style
+           :colorGrey4   render/color-gray-4
+           :logoFooter   true}
+          (random-quote-context)
           (when alert-condition-map
             {:alertCondition (get alert-condition-map (pulse->alert-condition-kwd alert))}))))
+
+(defn- alert-results-condition-text [goal-value]
+  {:meets (format "reached its goal of %s" goal-value)
+   :below (format "gone below its goal of %s" goal-value)
+   :rows  "results for you to see"})
+
+(defn render-alert-email
+  "Take a pulse object and list of results, returns an array of attachment objects for an email"
+  [timezone alert results goal-value]
+  (let [images       (atom {})
+        body         (binding [render/*include-title* true
+                               render/*render-img-fn* (partial render-image images)]
+                       (vec (cons :div (for [result results]
+                                         (render/render-pulse-section timezone result)))))
+        message-ctx  (default-alert-context alert (alert-results-condition-text goal-value))]
+    (render-message-body "metabase/email/alert" (assoc message-ctx :pulse body) (seq @images))))
 
 (def ^:private alert-condition-text
   {:meets "when this question meets its goal"

@@ -196,7 +196,7 @@
 ;; Rows alert with data
 (expect
   [true
-   {:subject "Alert: Test card"
+   {:subject "Metabase alert: Test card has results"
     :recipients [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
@@ -222,7 +222,7 @@
 ;; Above goal alert with data
 (expect
   [true
-   {:subject      "Alert: Test card"
+   {:subject      "Metabase alert: Test card has reached its goal"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
@@ -290,7 +290,7 @@
 ;; Below goal alert with data
 (expect
   [true
-   {:subject      "Alert: Test card"
+   {:subject      "Metabase alert: Test card has gone below its goal"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2
@@ -454,7 +454,7 @@
 ;; Above goal alert with a progress bar
 (expect
   [true
-   {:subject      "Alert: Test card"
+   {:subject      "Metabase alert: Test card has reached its goal"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    1
@@ -482,7 +482,7 @@
 ;; Below goal alert with progress bar
 (expect
   [true
-   {:subject      "Alert: Test card"
+   {:subject      "Metabase alert: Test card has gone below its goal"
     :recipients   [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    1
@@ -510,7 +510,7 @@
 ;; Rows alert, first run only with data
 (expect
   [true
-   {:subject "Alert: Test card"
+   {:subject "Metabase alert: Test card has results"
     :recipients [(:email (users/fetch-user :rasta))]
     :message-type :attachments}
    2

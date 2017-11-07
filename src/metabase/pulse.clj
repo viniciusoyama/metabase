@@ -60,15 +60,36 @@
 (defn- first-question-name [pulse]
   (-> pulse :cards first :name))
 
+(def ^:private alert-notification-condition-text
+  {:meets "reached its goal"
+   :below "gone below its goal"
+   :rows  "results"})
+
+(defn- find-goal-value
+  "The goal value can come from a progress goal or a graph goal_value depending on it's type"
+  [result]
+  (case (get-in result [:card :display])
+
+    (:area :bar :line)
+    (get-in result [:card :visualization_settings :graph.goal_value])
+
+    :progress
+    (get-in result [:card :visualization_settings :progress.goal])
+
+    nil))
+
 (defn- create-alert-notification [{:keys [id] :as pulse} results recipients]
   (log/debug (format "Sending Pulse (%d: %s) via Channel :email" id name))
-  (let [email-subject    (str "Alert: " (first-question-name pulse))
+  (let [condition-kwd    (messages/pulse->alert-condition-kwd pulse)
+        email-subject    (format "Metabase alert: %s has %s"
+                                 (first-question-name pulse)
+                                 (get alert-notification-condition-text condition-kwd))
         email-recipients (filterv u/is-email? (map :email recipients))
         timezone         (-> results first :card defaulted-timezone)]
     {:subject      email-subject
      :recipients   email-recipients
      :message-type :attachments
-     :message      (messages/render-alert-email timezone pulse results)}))
+     :message      (messages/render-alert-email timezone pulse results (find-goal-value results))}))
 
 (defn- send-email-pulse!
   "Send a `Pulse` email given a list of card results to render and a list of recipients to send to."
@@ -148,19 +169,6 @@
 
 (defn- goal-alert? [pulse]
   (= "goal" (:alert_condition pulse)))
-
-(defn- find-goal-value
-  "The goal value can come from a progress goal or a graph goal_value depending on it's type"
-  [result]
-  (case (get-in result [:card :display])
-
-    (:area :bar :line)
-    (get-in result [:card :visualization_settings :graph.goal_value])
-
-    :progress
-    (get-in result [:card :visualization_settings :progress.goal])
-
-    nil))
 
 (defn- dimension-column?
   "A dimension column is any non-aggregation column"

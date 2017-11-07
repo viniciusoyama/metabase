@@ -1,12 +1,6 @@
 {{> metabase/email/_header}}
-  {{#pulseName}}
-    <h1 style="{{sectionStyle}} margin: 16px; color: {{colorGrey4}};">
-      {{pulseName}}
-    </h1>
-    <p><a href="{{questionURL}}">{{questionName}}</a> has {{alertConditionMet}}.</p>
-    <p>We’ve attached a file with the results of this alert for your records.</p>
+    <p><a href="{{questionURL}}">{{questionName}}</a> has {{alertCondition}}.</p>
     <!-- @senior to-do: only show this next part if the alert was set up to only deliver the first time it triggered -->
     <p>We’ll stop sending you alerts about this question now.</p>
-  {{/pulseName}}
   {{{pulse}}}
 {{> metabase/email/_footer}}
