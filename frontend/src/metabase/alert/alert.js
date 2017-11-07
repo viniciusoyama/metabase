@@ -10,7 +10,7 @@ import Icon from "metabase/components/Icon.jsx";
 
 export const FETCH_ALL_ALERTS = 'metabase/alerts/FETCH_ALL_ALERTS'
 const fetchAllAlertsRequest = new RestfulRequest({
-    endpoint: AlertApi.table_xray,
+    endpoint: AlertApi.list,
     actionPrefix: FETCH_ALL_ALERTS,
     storeAsDictionary: true
 })

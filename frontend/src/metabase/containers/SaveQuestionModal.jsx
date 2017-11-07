@@ -14,6 +14,7 @@ import Query from "metabase/lib/query";
 import { cancelable } from "metabase/lib/promise";
 
 import "./SaveQuestionModal.css";
+import ButtonWithStatus from "metabase/components/ButtonWithStatus";
 
 export default class SaveQuestionModal extends Component {
 
@@ -114,6 +115,9 @@ export default class SaveQuestionModal extends Component {
             if (error && !error.isCanceled) {
                 this.setState({ error: error });
             }
+
+            // Throw error for ButtonWithStatus
+            throw error;
         }
     }
 
@@ -173,9 +177,10 @@ export default class SaveQuestionModal extends Component {
                         <Button onClick={this.props.onClose}>
                             Cancel
                         </Button>,
-                        <Button primary={this.state.valid} disabled={!this.state.valid} onClick={this.formSubmitted}>
-                            Save
-                        </Button>
+                        <ButtonWithStatus
+                            disabled={!this.state.valid}
+                            onClickOperation={this.formSubmitted}
+                        />
                 ]}
                 onClose={this.props.onClose}
             >

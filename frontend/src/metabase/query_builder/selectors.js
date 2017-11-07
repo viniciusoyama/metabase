@@ -160,6 +160,6 @@ export const getIsRunnable = createSelector([getQuestion], (question) => questio
 
 export const getQuestionAlerts = createSelector(
     [getAlerts, getCard],
-    (alerts, card) => card && card.id && _.pick(alerts, (alert) => alert.card.id === card.id) || []
+    (alerts, card) => card && card.id && _.pick(alerts, (alert) => alert.card.id === card.id) || {}
 )
 

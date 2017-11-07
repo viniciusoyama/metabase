@@ -1,4 +1,3 @@
-/* @flow */
 import React, { Component } from 'react'
 import { Motion, spring } from 'react-motion'
 
@@ -37,11 +36,11 @@ class EntityMenu extends Component {
         this.setState({ open, menuItemContent: null })
     }
 
-    setFreezeMenu = (freezeMenu) => {
+    setFreezeMenu = (freezeMenu: boolean) => {
         this.setState({ freezeMenu })
     }
 
-    replaceMenuWithItemContent = (menuItemContent) => {
+    replaceMenuWithItemContent = (menuItemContent: any) => {
        this.setState({ menuItemContent })
     }
 
