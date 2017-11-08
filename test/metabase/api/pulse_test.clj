@@ -215,9 +215,9 @@
     ((user->client :rasta) :get 200 "pulse")))
 
 ;; ## GET /api/pulse -- should not return alerts
-(tt/expect-with-temp [Pulse [pulse1 {:name     "ABCDEF"}]
-                      Pulse [pulse2 {:name     "GHIJKL"}]
-                      Pulse [pulse3 {:name     "AAAAAA"
+(tt/expect-with-temp [Pulse [pulse1 {:name "ABCDEF"}]
+                      Pulse [pulse2 {:name "GHIJKL"}]
+                      Pulse [pulse3 {:name            "AAAAAA"
                                      :alert_condition "rows"}]]
   [(assoc (pulse-details pulse1) :read_only false)
    (assoc (pulse-details pulse2) :read_only false)]
@@ -229,6 +229,6 @@
   ((user->client :rasta) :get 200 (str "pulse/" (:id pulse))))
 
 ;; ## GET /api/pulse/:id on an alert should 404
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"}]]
+(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition "rows"}]]
   "Not found."
   ((user->client :rasta) :get 404 (str "pulse/" pulse-id)))

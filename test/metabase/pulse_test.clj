@@ -1,5 +1,6 @@
 (ns metabase.pulse-test
-  (:require [expectations :refer :all]
+  (:require [clojure.walk :as walk]
+            [expectations :refer :all]
             [medley.core :as m]
             [metabase.integrations.slack :as slack]
             [metabase.models
@@ -39,12 +40,19 @@
 (defn- rasta-id []
   (users/user->id :rasta))
 
+(defn- realize-lazy-seqs
+  "It's possible when data structures contain lazy sequences that the database will be torn down before the lazy seq
+  is realized, causing the data returned to be nil. This function walks the datastructure, realizing all the lazy
+  sequences it finds"
+  [data]
+  (walk/postwalk identity data))
+
 (defmacro ^:private test-setup
   "Macro that ensures test-data is present and disables sending of notifications"
   [& body]
   `(data/with-db (data/get-or-create-database! defs/test-data)
      (tu/with-temporary-setting-values [~'site-url "https://metabase.com/testmb"]
-       (with-redefs [metabase.pulse/send-notifications! #(clojure.walk/postwalk identity %)
+       (with-redefs [metabase.pulse/send-notifications! realize-lazy-seqs
                      slack/channels-list                (constantly [{:name "metabase_files"
                                                                       :id   "FOO"}])]
          ~@body))))
@@ -179,20 +187,19 @@
      (send-pulse! (retrieve-pulse pulse-id)))))
 
 ;; Rows alert with no data
-(expect
+(tt/expect-with-temp [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
+                                                                             :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
+                      Pulse                 [{pulse-id :id} {:alert_condition  "rows"
+                                                             :alert_first_only false}]
+                      PulseCard             [pulse-card     {:pulse_id pulse-id
+                                                             :card_id  card-id
+                                                             :position 0}]
+                      PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_              {:user_id          (rasta-id)
+                                                             :pulse_channel_id pc-id}]]
   nil
   (test-setup
-   (tt/with-temp* [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
-                                                                          :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
-                   Pulse                 [{pulse-id :id} {:alert_condition  "rows"
-                                                          :alert_first_only false}]
-                   PulseCard             [pulse-card     {:pulse_id pulse-id
-                                                          :card_id  card-id
-                                                          :position 0}]
-                   PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_              {:user_id          (rasta-id)
-                                                          :pulse_channel_id pc-id}]]
-     (send-pulse! (retrieve-pulse-or-alert pulse-id)))))
+   (send-pulse! (retrieve-pulse-or-alert pulse-id))))
 
 (defn- rows-email-body?
   [{:keys [content] :as message}]
@@ -211,7 +218,15 @@
   (boolean (re-find #"stop sending you alerts" content)))
 
 ;; Rows alert with data
-(expect
+(tt/expect-with-temp [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Pulse                [{pulse-id :id} {:alert_condition  "rows"
+                                                            :alert_first_only false}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id (rasta-id)
+                                                            :pulse_channel_id pc-id}]]
   [true
    {:subject "Metabase alert: Test card has results"
     :recipients [(:email (users/fetch-user :rasta))]
@@ -221,25 +236,28 @@
    true
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
-                   Pulse                [{pulse-id :id} {:alert_condition  "rows"
-                                                         :alert_first_only false}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id
-                                                         :position 0}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id (rasta-id)
-                                                         :pulse_channel_id pc-id}]]
-     (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
-       [(empty? no-more-results)
-        (select-keys result [:subject :recipients :message-type])
-        (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))
-        (rows-email-body? (first (:message result)))]))))
+   (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
+     [(empty? no-more-results)
+      (select-keys result [:subject :recipients :message-type])
+      (count (:message result))
+      (email-body? (first (:message result)))
+      (attachment? (second (:message result)))
+      (rows-email-body? (first (:message result)))])))
 
 ;; Above goal alert with data
-(expect
+(tt/expect-with-temp [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-04-01" "2014-06-01"]
+                                                                                   :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
+                                                                  {:display :line
+                                                                   :visualization_settings {:graph.show_goal true :graph.goal_value 5.9}})]
+                      Pulse                [{pulse-id :id} {:alert_condition   "goal"
+                                                            :alert_first_only  false
+                                                            :alert_above_goal  true}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id          (rasta-id)
+                                                            :pulse_channel_id pc-id}]]
   [true
    {:subject      "Metabase alert: Test card has reached its goal"
     :recipients   [(:email (users/fetch-user :rasta))]
@@ -249,67 +267,64 @@
    true
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-04-01" "2014-06-01"]
-                                                                                :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
-                                                               {:display :line
-                                                                :visualization_settings {:graph.show_goal true :graph.goal_value 5.9}})]
-                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
-                                                         :alert_first_only  false
-                                                         :alert_above_goal  true}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id
-                                                         :position 0}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id          (rasta-id)
-                                                         :pulse_channel_id pc-id}]]
-     (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
-       [(empty? no-more-results)
-        (select-keys result [:subject :recipients :message-type])
-        (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))
-        (goal-above-email-body? (first (:message result)))]))))
+   (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
+     [(empty? no-more-results)
+      (select-keys result [:subject :recipients :message-type])
+      (count (:message result))
+      (email-body? (first (:message result)))
+      (attachment? (second (:message result)))
+      (goal-above-email-body? (first (:message result)))])))
 
 ;; Above goal alert, with no data above goal
-(expect
+(tt/expect-with-temp [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-01" "2014-04-01"]
+                                                                                   :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
+                                                                  {:display :area
+                                                                   :visualization_settings {:graph.show_goal true :graph.goal_value 5.9}})]
+                      Pulse                [{pulse-id :id} {:alert_condition   "goal"
+                                                            :alert_first_only  false
+                                                            :alert_above_goal  true}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id          (rasta-id)
+                                                            :pulse_channel_id pc-id}]]
   nil
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-01" "2014-04-01"]
-                                                                                :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
-                                                               {:display :area
-                                                                :visualization_settings {:graph.show_goal true :graph.goal_value 5.9}})]
-                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
-                                                         :alert_first_only  false
-                                                         :alert_above_goal  true}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id
-                                                         :position 0}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id          (rasta-id)
-                                                         :pulse_channel_id pc-id}]]
-     (send-pulse! (retrieve-pulse-or-alert pulse-id)))))
+   (send-pulse! (retrieve-pulse-or-alert pulse-id))))
 
 ;; Below goal alert with no satisfying data
-(expect
+(tt/expect-with-temp [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-10" "2014-02-12"]
+                                                                                   :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
+                                                                  {:display :bar
+                                                                   :visualization_settings {:graph.show_goal true :graph.goal_value 1.1}})]
+                      Pulse                [{pulse-id :id} {:alert_condition   "goal"
+                                                            :alert_first_only  false
+                                                            :alert_above_goal  false}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id          (rasta-id)
+                                                            :pulse_channel_id pc-id}]]
   nil
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-10" "2014-02-12"]
-                                                                                :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
-                                                               {:display :bar
-                                                                :visualization_settings {:graph.show_goal true :graph.goal_value 1.1}})]
-                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
-                                                         :alert_first_only  false
-                                                         :alert_above_goal  false}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id
-                                                         :position 0}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id          (rasta-id)
-                                                         :pulse_channel_id pc-id}]]
-     (send-pulse! (retrieve-pulse-or-alert pulse-id)))))
+   (send-pulse! (retrieve-pulse-or-alert pulse-id))))
 
 ;; Below goal alert with data
-(expect
+(tt/expect-with-temp [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-12" "2014-02-17"]
+                                                                                   :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
+                                                                  {:display                :line
+                                                                   :visualization_settings {:graph.show_goal true :graph.goal_value 1.1}})]
+                      Pulse                [{pulse-id :id} {:alert_condition   "goal"
+                                                            :alert_first_only  false
+                                                            :alert_above_goal  false}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id          (rasta-id)
+                                                            :pulse_channel_id pc-id}]]
   [true
    {:subject      "Metabase alert: Test card has gone below its goal"
     :recipients   [(:email (users/fetch-user :rasta))]
@@ -319,26 +334,13 @@
    true
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (merge (checkins-query {:filter   ["between",["field-id" (data/id :checkins :date)],"2014-02-12" "2014-02-17"]
-                                                                                :breakout [["datetime-field" (data/id :checkins :date) "day"]]})
-                                                               {:display                :line
-                                                                :visualization_settings {:graph.show_goal true :graph.goal_value 1.1}})]
-                   Pulse                [{pulse-id :id} {:alert_condition   "goal"
-                                                         :alert_first_only  false
-                                                         :alert_above_goal  false}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id
-                                                         :position 0}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id          (rasta-id)
-                                                         :pulse_channel_id pc-id}]]
-     (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
-       [(empty? no-more-results)
-        (select-keys result [:subject :recipients :message-type])
-        (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))
-        (goal-below-email-body? (first (:message result)))]))))
+   (let [[result & no-more-results] (send-pulse! (retrieve-pulse-or-alert pulse-id))]
+     [(empty? no-more-results)
+      (select-keys result [:subject :recipients :message-type])
+      (count (:message result))
+      (email-body? (first (:message result)))
+      (attachment? (second (:message result)))
+      (goal-below-email-body? (first (:message result)))])))
 
 (defn- thunk->boolean [{:keys [attachments] :as result}]
   (assoc result :attachments (for [attachment-info attachments]
@@ -565,18 +567,17 @@
         (db/exists? Pulse :id pulse-id)]))))
 
 ;; First run alert with no data
-(expect
+(tt/expect-with-temp [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
+                                                                             :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
+                      Pulse                 [{pulse-id :id} {:alert_condition  "rows"
+                                                             :alert_first_only true}]
+                      PulseCard             [pulse-card     {:pulse_id pulse-id
+                                                             :card_id  card-id
+                                                             :position 0}]
+                      PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_              {:user_id          (rasta-id)
+                                                             :pulse_channel_id pc-id}]]
   [nil true]
   (test-setup
-   (tt/with-temp* [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
-                                                                          :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
-                   Pulse                 [{pulse-id :id} {:alert_condition  "rows"
-                                                          :alert_first_only true}]
-                   PulseCard             [pulse-card     {:pulse_id pulse-id
-                                                          :card_id  card-id
-                                                          :position 0}]
-                   PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_              {:user_id          (rasta-id)
-                                                          :pulse_channel_id pc-id}]]
-     [(send-pulse! (retrieve-pulse-or-alert pulse-id))
-      (db/exists? Pulse :id pulse-id)])))
+   [(send-pulse! (retrieve-pulse-or-alert pulse-id))
+    (db/exists? Pulse :id pulse-id)]))

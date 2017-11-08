@@ -4,6 +4,7 @@
   (:require [expectations :refer :all]
             [medley.core :as m]
             [metabase.email :as email]
+            [metabase.test.data.users :as user]
             [metabase.test.util :as tu]))
 
 (def inbox
@@ -63,6 +64,14 @@
     (m/map-vals (fn [emails-for-recipient]
                   (map #(update % :body email-body->regex-boolean) emails-for-recipient))
                 @inbox)))
+
+(defn email-to
+  "Creates a default email map for `USER`, as would be returned by `with-fake-inbox`"
+  [user-kwd & [email-map]]
+  (let [{:keys [email]} (user/fetch-user user-kwd)]
+    {email [(merge {:from "notifications@metabase.com",
+                     :to [email]}
+                    email-map)]}))
 
 ;; simple test of email sending capabilities
 (expect
