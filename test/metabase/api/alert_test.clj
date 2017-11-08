@@ -668,7 +668,7 @@
          (et/regex-email-bodies #"https://metabase.com/testmb"
                                 #"Foo")]))))
 
-;; Alert should be not be deleted if there is a slack channel
+;; Alert should not be deleted if there is a slack channel
 (expect
   [1
    1 ;<-- Alert should not be deleted
@@ -700,7 +700,7 @@
          (et/regex-email-bodies #"https://metabase.com/testmb"
                                 #"Foo")]))))
 
-;; Alert should be not be deleted if the unsubscriber isn't the creator
+;; Alert should not be deleted if the unsubscriber isn't the creator
 (expect
   [1
    1 ;<-- Alert should not be deleted
@@ -775,7 +775,12 @@
 
 ;; An admin can delete a user's alert
 (expect
-  [1 nil 0]
+  [1 nil 0
+   {"rasta@metabase.com"
+    [{:from "notifications@metabase.com",
+      :to ["rasta@metabase.com"],
+      :subject "Crowberto Corv deleted an alert you created",
+      :body {"Crowberto Corv deleted an alert" true}}]}]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
                     Pulse                [{pulse-id :id} {:alert_condition   "rows"
@@ -787,6 +792,43 @@
                     PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
                     PulseChannelRecipient [_             {:user_id          (user->id :rasta)
                                                           :pulse_channel_id pc-id}]]
-      [(count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
-       ((user->client :crowberto) :delete 204 (format "alert/%d" pulse-id))
-       (count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))])))
+      (with-test-email
+        [(count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         ((user->client :crowberto) :delete 204 (format "alert/%d" pulse-id))
+         (count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         (et/regex-email-bodies #"Crowberto Corv deleted an alert")]))))
+
+;; A deleted alert should notify the creator and any recipients
+(expect
+  [1 nil 0
+   {"rasta@metabase.com"
+    [{:from "notifications@metabase.com",
+      :to ["rasta@metabase.com"],
+      :subject "Crowberto Corv deleted an alert you created",
+      :body {"Crowberto Corv deleted an alert" true
+             "Crowberto Corv unsubscribed you from alerts" false}}]
+    "lucky@metabase.com"
+    [{:from "notifications@metabase.com",
+      :to ["lucky@metabase.com"],
+      :subject "You’ve been unsubscribed from an alert",
+      :body {"Crowberto Corv deleted an alert" false
+             "Crowberto Corv unsubscribed you from alerts" true}}]}]
+  (data/with-db (data/get-or-create-database! defs/test-data)
+    (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
+                    Pulse                [{pulse-id :id} {:alert_condition   "rows"
+                                                          :alert_first_only  false
+                                                          :creator_id        (user->id :rasta)}]
+                    PulseCard             [_             {:pulse_id pulse-id
+                                                          :card_id  card-id
+                                                          :position 0}]
+                    PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                    PulseChannelRecipient [_             {:user_id          (user->id :rasta)
+                                                          :pulse_channel_id pc-id}]
+                    PulseChannelRecipient [_             {:user_id          (user->id :lucky)
+                                                          :pulse_channel_id pc-id}]]
+      (with-test-email
+        [(count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         ((user->client :crowberto) :delete 204 (format "alert/%d" pulse-id))
+         (count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
+         (et/regex-email-bodies #"Crowberto Corv deleted an alert"
+                                #"Crowberto Corv unsubscribed you from alerts")]))))

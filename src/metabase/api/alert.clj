@@ -161,11 +161,28 @@
 
     api/generic-204-no-content))
 
+(defn- collect-alert-recipients [alert]
+  (reduce into #{}
+          (for [{:keys [channel_type recipients]} (:channels alert)
+                :when (= :email channel_type)]
+            recipients)))
+
 (api/defendpoint DELETE "/:id"
   [id]
-  (api/let-404 [pulse (pulse/retrieve-alert id)]
+  (api/let-404 [alert (pulse/retrieve-alert id)]
     (api/check-superuser)
-    (db/delete! Pulse :id id)
+
+    (let [creator (:creator alert)
+          recipients (remove #(= (:id creator) (:id %)) (collect-alert-recipients alert))]
+
+      (db/delete! Pulse :id id)
+
+      (when (email/email-configured?)
+
+        (doseq [recipient recipients]
+          (messages/send-admin-unsubscribed-alert-email! alert recipient @api/*current-user*))
+
+        (messages/send-admin-deleted-your-alert! alert creator @api/*current-user*)))
     api/generic-204-no-content))
 
 (api/define-routes)

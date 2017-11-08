@@ -336,3 +336,14 @@
     :message (stencil/render-file "metabase/email/alert_stopped_working.mustache"
                (assoc (default-alert-context alert)
                  :deletionCause (format "the question was edited by %s %s" (:first_name archiver) (:last_name archiver))))))
+
+(defn send-admin-deleted-your-alert!
+  "Email used to notify users when an admin has deleted their alert"
+  [alert user {:keys [first_name last_name] :as deletor}]
+  (email/send-message!
+    :subject (format "%s %s deleted an alert you created" first_name last_name)
+    :recipients [(:email user)]
+    :message-type :html
+    :message (stencil/render-file "metabase/email/alert_was_deleted.mustache"
+               (assoc (default-alert-context alert)
+                 :adminName (format "%s %s" first_name last_name)))))
