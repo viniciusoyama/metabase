@@ -320,14 +320,15 @@
   "Removes `USER-ID` from `PULSE-ID`"
   [pulse-id user-id]
   (let [[result] (db/execute! {:delete-from PulseChannelRecipient
-                               :where [:= :id {:select [:pcr.id]
-                                               :from [[PulseChannelRecipient :pcr]]
-                                               :join [[PulseChannel :pchan] [:= :pchan.id :pcr.pulse_channel_id]
-                                                      [Pulse :p] [:= :p.id :pchan.pulse_id]]
-                                               :where [:and
-                                                       [:= :p.id pulse-id]
-                                                       [:not= :p.alert_condition nil]
-                                                       [:= :pcr.user_id user-id]]}]})]
+                               :where [:= :id {:select [:*]
+                                               :from [[{:select [:pcr.id]
+                                                         :from [[PulseChannelRecipient :pcr]]
+                                                         :join [[PulseChannel :pchan] [:= :pchan.id :pcr.pulse_channel_id]
+                                                                [Pulse :p] [:= :p.id :pchan.pulse_id]]
+                                                         :where [:and
+                                                                 [:= :p.id pulse-id]
+                                                                 [:not= :p.alert_condition nil]
+                                                                 [:= :pcr.user_id user-id]]} "r"]]}]})]
     (when (zero? result)
       (log/warnf "Failed to remove user-id '%s' from pulse-id '%s'" user-id pulse-id))
 

@@ -319,6 +319,10 @@
                                                           :details       {}}]
                                      :skip_if_empty     false}))))
 
+(defn- setify-recipient-emails [results]
+  (update results :channels (fn [channels]
+                              (map #(update % :recipients set) channels))))
+
 ;; Admin users can add a recipieint, that recipient should be notified
 (tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false
@@ -344,10 +348,10 @@
     :channels          [(merge pulse-channel-defaults
                                {:channel_type  "email"
                                 :schedule_type "hourly"
-                                :recipients    (mapv (comp #(dissoc % :last_login :is_qbnewb :is_superuser :date_joined)
-                                                           user-details
-                                                           fetch-user)
-                                                     [:crowberto :rasta])
+                                :recipients    (set (map (comp #(dissoc % :last_login :is_qbnewb :is_superuser :date_joined)
+                                                               user-details
+                                                               fetch-user)
+                                                         [:crowberto :rasta]))
                                 :updated_at    true,
                                 :pulse_id      true,
                                 :id            true,
@@ -360,7 +364,7 @@
       :body {"https://metabase.com/testmb" true, "now getting alerts" true}}]}]
   (tu/with-model-cleanup [Pulse]
     (with-test-email
-      [(tu/boolean-ids-and-timestamps ((user->client :crowberto) :put 200 (format "alert/%d" pulse-id)
+      [(-> ((user->client :crowberto) :put 200 (format "alert/%d" pulse-id)
                                        {:card              {:id (:id card)}
                                         :alert_condition   "rows"
                                         :alert_first_only  false
@@ -373,7 +377,9 @@
                                                              :recipients    [(fetch-user :crowberto)
                                                                              (fetch-user :rasta)]
                                                              :details       {}}]
-                                        :skip_if_empty     false}))
+                                        :skip_if_empty     false})
+           tu/boolean-ids-and-timestamps
+           setify-recipient-emails)
        (et/regex-email-bodies #"https://metabase.com/testmb"
                               #"now getting alerts")])))
 
