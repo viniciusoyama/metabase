@@ -732,9 +732,9 @@
          (et/regex-email-bodies #"https://metabase.com/testmb"
                                 #"Foo")]))))
 
-;; Testing delete of pulse by it's creator
+;; Only admins can delete an alert
 (expect
-  [1 nil 0]
+  [1 "You don't have permissions to do that."]
   (data/with-db (data/get-or-create-database! defs/test-data)
     (tt/with-temp* [Card                 [{card-id :id}  (basic-alert-query)]
                     Pulse                [{pulse-id :id} {:alert_condition   "rows"
@@ -748,8 +748,7 @@
                                                           :pulse_channel_id pc-id}]]
 
       [(count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))
-       ((user->client :rasta) :delete 204 (format "alert/%d" pulse-id))
-       (count ((user->client :rasta) :get 200 (format "alert/question/%d" card-id)))])))
+       ((user->client :rasta) :delete 403 (format "alert/%d" pulse-id))])))
 
 ;; Testing a user can't delete an admin's alert
 (expect

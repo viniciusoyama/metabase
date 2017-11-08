@@ -164,9 +164,7 @@
 (api/defendpoint DELETE "/:id"
   [id]
   (api/let-404 [pulse (pulse/retrieve-alert id)]
-    (api/check-403
-     (or (= api/*current-user-id* (:creator_id pulse))
-          api/*is-superuser?*))
+    (api/check-superuser)
     (db/delete! Pulse :id id)
     api/generic-204-no-content))
 
