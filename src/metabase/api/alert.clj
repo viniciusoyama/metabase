@@ -2,31 +2,20 @@
   "/api/alert endpoints"
   (:require [clojure.data :as data]
             [compojure.core :refer [DELETE GET POST PUT]]
-            [hiccup.core :refer [html]]
             [medley.core :as m]
             [metabase
-             [driver :as driver]
              [email :as email]
-             [events :as events]
-             [pulse :as p]
-             [query-processor :as qp]
              [util :as u]]
             [metabase.api
              [common :as api]
              [pulse :as pulse-api]]
             [metabase.email.messages :as messages]
-            [metabase.integrations.slack :as slack]
             [metabase.models
-             [card :refer [Card]]
              [interface :as mi]
-             [pulse :as pulse :refer [Pulse]]
-             [pulse-channel :refer [channel-types]]]
-            [metabase.pulse.render :as render]
+             [pulse :as pulse :refer [Pulse]]]
             [metabase.util.schema :as su]
             [schema.core :as s]
-            [toucan.db :as db])
-  (:import java.io.ByteArrayInputStream
-           java.util.TimeZone))
+            [toucan.db :as db]))
 
 (api/defendpoint GET "/"
   "Fetch all `Alerts`"
@@ -93,16 +82,19 @@
 (defn- slack-channel [alert]
   (m/find-first #(= :slack (:channel_type %)) (:channels alert)))
 
-(defn- notify-recipient-changes! [old-alert updated-alert]
+(defn- key-by [key-fn coll]
+  (zipmap (map key-fn coll) coll))
+
+(defn- notify-recipient-changes!
+  "This function compares `OLD-ALERT` and `UPDATED-ALERT` to determine if there have been any recipient related
+  changes. Recipients that have been added or removed will be notified."
+  [old-alert updated-alert]
   (let [{old-recipients :recipients} (email-channel old-alert)
         {new-recipients :recipients} (email-channel updated-alert)
-        old-ids->users (zipmap (map :id old-recipients)
-                               old-recipients)
-        new-ids->users (zipmap (map :id new-recipients)
-                               new-recipients)
+        old-ids->users (key-by :id old-recipients)
+        new-ids->users (key-by :id new-recipients)
         [removed-ids added-ids _] (data/diff (set (keys old-ids->users))
                                              (set (keys new-ids->users)))]
-
     (doseq [old-id removed-ids
             :let [removed-user (get old-ids->users old-id)]]
       (messages/send-admin-unsubscribed-alert-email! old-alert removed-user @api/*current-user*))
@@ -126,6 +118,7 @@
                           (assoc :id id :card (u/get-id card) :channels channels)
                           pulse/update-alert!)]
 
+    ;; Only admins can update recipients
     (when (and api/*is-superuser?* (email/email-configured?))
       (notify-recipient-changes! old-alert updated-alert))
 
@@ -172,17 +165,19 @@
   (api/let-404 [alert (pulse/retrieve-alert id)]
     (api/check-superuser)
 
+    ;; When an alert is deleted, we notify the creator that their alert is being deleted and any recipieint that they
+    ;; are no longer going to be receiving that alert
     (let [creator (:creator alert)
+          ;; The creator might also be a recipient, no need to notify them twice
           recipients (remove #(= (:id creator) (:id %)) (collect-alert-recipients alert))]
 
       (db/delete! Pulse :id id)
 
       (when (email/email-configured?)
-
         (doseq [recipient recipients]
           (messages/send-admin-unsubscribed-alert-email! alert recipient @api/*current-user*))
-
         (messages/send-admin-deleted-your-alert! alert creator @api/*current-user*)))
+
     api/generic-204-no-content))
 
 (api/define-routes)

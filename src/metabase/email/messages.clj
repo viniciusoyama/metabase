@@ -273,77 +273,66 @@
    :below "when this question goes below its goal"
    :rows  "whenever this question has any results"})
 
+(defn- send-email! [user subject template-path template-context]
+  (email/send-message!
+    :recipients   [(:email user)]
+    :message-type :html
+    :subject      subject
+    :message      (stencil/render-file template-path template-context)))
+
+(defn- template-path [template-name]
+  (str "metabase/email/" template-name ".mustache"))
+
+;; Paths to the templates for all of the alerts emails
+(def ^:private new-alert-template (template-path "alert_new_confirmation"))
+(def ^:private you-unsubscribed-template (template-path "alert_unsubscribed"))
+(def ^:private admin-unsubscribed-template (template-path "alert_admin_unsubscribed_you"))
+(def ^:private added-template (template-path "alert_you_were_added"))
+(def ^:private stopped-template (template-path "alert_stopped_working"))
+(def ^:private deleted-template (template-path "alert_was_deleted"))
+
 (defn send-new-alert-email!
   "Send out the initial 'new alert' email to the `CREATOR` of the alert"
-  [{:keys [alert_above_goal alert_condition card creator] :as alert}]
-  (let [{card-id :id, card-name :name, chart-type :display} card]
-    (email/send-message!
-      :subject "You setup an alert"
-      :recipients [(:email creator)]
-      :message-type :html
-      :message (stencil/render-file "metabase/email/alert_new_confirmation.mustache"
-                 (default-alert-context alert alert-condition-text)))))
+  [{:keys [creator] :as alert}]
+  (send-email! creator "You setup an alert" new-alert-template
+               (default-alert-context alert alert-condition-text)))
 
 (defn send-you-unsubscribed-alert-email!
   "Send an email to `WHO-UNSUBSCRIBED` letting them know they've unsubscribed themselves from `ALERT`"
   [alert who-unsubscribed]
-  (email/send-message!
-    :subject "You unsubscribed from an alert"
-    :recipients [(:email who-unsubscribed)]
-    :message-type :html
-    :message (stencil/render-file "metabase/email/alert_unsubscribed.mustache"
-               (default-alert-context alert))))
+  (send-email! who-unsubscribed "You unsubscribed from an alert" you-unsubscribed-template
+               (default-alert-context alert)))
 
 (defn send-admin-unsubscribed-alert-email!
   "Send an email to `USER-ADDED` letting them know `ADMIN` has unsubscribed them from `ALERT`"
-  [alert user-added admin]
-  (email/send-message!
-    :subject "You’ve been unsubscribed from an alert"
-    :recipients [(:email user-added)]
-    :message-type :html
-    :message (stencil/render-file "metabase/email/alert_admin_unsubscribed_you.mustache"
-               (assoc (default-alert-context alert)
-                 :adminName (str (:first_name admin) " " (:last_name admin))))))
+  [alert user-added {:keys [first_name last_name] :as admin}]
+  (let [admin-name (format "%s %s" first_name last_name)]
+    (send-email! user-added "You’ve been unsubscribed from an alert" admin-unsubscribed-template
+                 (assoc (default-alert-context alert) :adminName admin-name))))
 
 (defn send-you-were-added-alert-email!
   "Send an email to `USER-ADDED` letting them know `ADMIN-ADDER` has added them to `ALERT`"
-  [alert user-added admin-adder]
-  (email/send-message!
-    :subject (format "%s %s added you to an alert" (:first_name admin-adder) (:last_name admin-adder))
-    :recipients [(:email user-added)]
-    :message-type :html
-    :message (stencil/render-file "metabase/email/alert_you_were_added.mustache"
-               (default-alert-context alert alert-condition-text))))
+  [alert user-added {:keys [first_name last_name] :as admin-adder}]
+  (let [subject (format "%s %s added you to an alert" first_name last_name)]
+    (send-email! user-added subject added-template (default-alert-context alert alert-condition-text))))
+
+(def ^:private not-working-subject "One of your alerts has stopped working")
 
 (defn send-alert-stopped-because-archived-email!
-  "Email used to notify users when a card associated to their alert has been archived"
-  [alert user archiver]
-  (email/send-message!
-    :subject "One of your alerts has stopped working"
-    :recipients [(:email user)]
-    :message-type :html
-    :message (stencil/render-file "metabase/email/alert_stopped_working.mustache"
-               (assoc (default-alert-context alert)
-                 :deletionCause (format "the question was archived by %s %s" (:first_name archiver) (:last_name archiver))))))
+  "Email to notify users when a card associated to their alert has been archived"
+  [alert user {:keys [first_name last_name] :as archiver}]
+  (let [deletion-text (format "the question was archived by %s %s" first_name last_name)]
+    (send-email! user not-working-subject stopped-template (assoc (default-alert-context alert) :deletionCause deletion-text))))
 
 (defn send-alert-stopped-because-changed-email!
-  "Email used to notify users when a card associated to their alert changed in a way that invalidates their alert"
-  [alert user archiver]
-  (email/send-message!
-    :subject "One of your alerts has stopped working"
-    :recipients [(:email user)]
-    :message-type :html
-    :message (stencil/render-file "metabase/email/alert_stopped_working.mustache"
-               (assoc (default-alert-context alert)
-                 :deletionCause (format "the question was edited by %s %s" (:first_name archiver) (:last_name archiver))))))
+  "Email to notify users when a card associated to their alert changed in a way that invalidates their alert"
+  [alert user {:keys [first_name last_name] :as archiver}]
+  (let [edited-text (format "the question was edited by %s %s" first_name last_name)]
+    (send-email! user not-working-subject stopped-template (assoc (default-alert-context alert) :deletionCause edited-text))))
 
 (defn send-admin-deleted-your-alert!
-  "Email used to notify users when an admin has deleted their alert"
+  "Email to notify users when an admin has deleted their alert"
   [alert user {:keys [first_name last_name] :as deletor}]
-  (email/send-message!
-    :subject (format "%s %s deleted an alert you created" first_name last_name)
-    :recipients [(:email user)]
-    :message-type :html
-    :message (stencil/render-file "metabase/email/alert_was_deleted.mustache"
-               (assoc (default-alert-context alert)
-                 :adminName (format "%s %s" first_name last_name)))))
+  (let [subject (format "%s %s deleted an alert you created" first_name last_name)
+        admin-name (format "%s %s" first_name last_name)]
+    (send-email! user subject deleted-template (assoc (default-alert-context alert) :adminName admin-name))))

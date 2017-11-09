@@ -58,7 +58,15 @@
          ~@body))))
 
 ;; Basic test, 1 card, 1 recipient
-(expect
+(tt/expect-with-temp [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Pulse                [{pulse-id :id} {:name "Pulse Name"
+                                                            :skip_if_empty false}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id (rasta-id)
+                                                            :pulse_channel_id pc-id}]]
   [true
    {:subject "Pulse: Pulse Name"
     :recipients [(:email (users/fetch-user :rasta))]
@@ -67,24 +75,25 @@
    true
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
-                   Pulse                [{pulse-id :id} {:name "Pulse Name"
-                                                         :skip_if_empty false}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id
-                                                         :position 0}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id (rasta-id)
-                                                         :pulse_channel_id pc-id}]]
-     (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
-       [(empty? no-more-results)
-        (select-keys result [:subject :recipients :message-type])
-        (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+   (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
+     [(empty? no-more-results)
+      (select-keys result [:subject :recipients :message-type])
+      (count (:message result))
+      (email-body? (first (:message result)))
+      (attachment? (second (:message result)))])))
 
 ;; Pulse should be sent to two recipients
-(expect
+(tt/expect-with-temp [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Pulse                [{pulse-id :id} {:name "Pulse Name"
+                                                            :skip_if_empty false}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id (rasta-id)
+                                                            :pulse_channel_id pc-id}]
+                      PulseChannelRecipient [_             {:user_id (users/user->id :crowberto)
+                                                            :pulse_channel_id pc-id}]]
   [true
    {:subject "Pulse: Pulse Name"
     :recipients (set (map (comp :email users/fetch-user) [:rasta :crowberto]))
@@ -93,28 +102,29 @@
    true
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
-                   Pulse                [{pulse-id :id} {:name "Pulse Name"
-                                                         :skip_if_empty false}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id
-                                                         :position 0}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id (rasta-id)
-                                                         :pulse_channel_id pc-id}]
-                   PulseChannelRecipient [_             {:user_id (users/user->id :crowberto)
-                                                         :pulse_channel_id pc-id}]]
-     (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
-       [(empty? no-more-results)
-        (-> result
-            (select-keys [:subject :recipients :message-type])
-            (update :recipients set))
-        (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+   (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
+     [(empty? no-more-results)
+      (-> result
+          (select-keys [:subject :recipients :message-type])
+          (update :recipients set))
+      (count (:message result))
+      (email-body? (first (:message result)))
+      (attachment? (second (:message result)))])))
 
 ;; 1 pulse that has 2 cards, should contain two attachments
-(expect
+(tt/expect-with-temp [Card                 [{card-id-1 :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
+                      Card                 [{card-id-2 :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "day-of-week"]]})]
+                      Pulse                [{pulse-id :id} {:name "Pulse Name"
+                                                            :skip_if_empty false}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id-1
+                                                            :position 0}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id-2
+                                                            :position 1}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_             {:user_id (rasta-id)
+                                                            :pulse_channel_id pc-id}]]
   [true
    {:subject "Pulse: Pulse Name"
     :recipients [(:email (users/fetch-user :rasta))]
@@ -123,28 +133,24 @@
    true
    true]
   (test-setup
-   (tt/with-temp* [Card                 [{card-id-1 :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "hour"]]})]
-                   Card                 [{card-id-2 :id}  (checkins-query {:breakout [["datetime-field" (data/id :checkins :date) "day-of-week"]]})]
-                   Pulse                [{pulse-id :id} {:name "Pulse Name"
-                                                         :skip_if_empty false}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id-1
-                                                         :position 0}]
-                   PulseCard             [_             {:pulse_id pulse-id
-                                                         :card_id  card-id-2
-                                                         :position 1}]
-                   PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_             {:user_id (rasta-id)
-                                                         :pulse_channel_id pc-id}]]
-     (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
-       [(empty? no-more-results)
-        (select-keys result [:subject :recipients :message-type])
-        (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+   (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
+     [(empty? no-more-results)
+      (select-keys result [:subject :recipients :message-type])
+      (count (:message result))
+      (email-body? (first (:message result)))
+      (attachment? (second (:message result)))])))
 
 ;; Pulse where the card has no results, but skip_if_empty is false, so should still send
-(expect
+(tt/expect-with-temp [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
+                                                                             :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
+                      Pulse                 [{pulse-id :id} {:name          "Pulse Name"
+                                                             :skip_if_empty false}]
+                      PulseCard             [pulse-card     {:pulse_id pulse-id
+                                                             :card_id  card-id
+                                                             :position 0}]
+                      PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_              {:user_id          (rasta-id)
+                                                             :pulse_channel_id pc-id}]]
   [true
    {:subject      "Pulse: Pulse Name"
     :recipients   [(:email (users/fetch-user :rasta))]
@@ -153,38 +159,27 @@
    true
    true]
   (test-setup
-   (tt/with-temp* [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
-                                                                          :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
-                   Pulse                 [{pulse-id :id} {:name          "Pulse Name"
-                                                          :skip_if_empty false}]
-                   PulseCard             [pulse-card     {:pulse_id pulse-id
-                                                          :card_id  card-id
-                                                          :position 0}]
-                   PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_              {:user_id          (rasta-id)
-                                                          :pulse_channel_id pc-id}]]
-     (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
-       [(empty? no-more-results)
-        (select-keys result [:subject :recipients :message-type])
-        (count (:message result))
-        (email-body? (first (:message result)))
-        (attachment? (second (:message result)))]))))
+   (let [[result & no-more-results] (send-pulse! (retrieve-pulse pulse-id))]
+     [(empty? no-more-results)
+      (select-keys result [:subject :recipients :message-type])
+      (count (:message result))
+      (email-body? (first (:message result)))
+      (attachment? (second (:message result)))])))
 
 ;; Pulse where the card has no results, skip_if_empty is true, so no pulse should be sent
-(expect
+(tt/expect-with-temp [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
+                                                                             :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
+                      Pulse                 [{pulse-id :id} {:name          "Pulse Name"
+                                                             :skip_if_empty true}]
+                      PulseCard             [pulse-card     {:pulse_id pulse-id
+                                                             :card_id  card-id
+                                                             :position 0}]
+                      PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
+                      PulseChannelRecipient [_              {:user_id          (rasta-id)
+                                                             :pulse_channel_id pc-id}]]
   nil
   (test-setup
-   (tt/with-temp* [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]
-                                                                          :breakout [["datetime-field" ["field-id" (data/id :checkins :date)] "hour"]]})]
-                   Pulse                 [{pulse-id :id} {:name          "Pulse Name"
-                                                          :skip_if_empty true}]
-                   PulseCard             [pulse-card     {:pulse_id pulse-id
-                                                          :card_id  card-id
-                                                          :position 0}]
-                   PulseChannel          [{pc-id :id}    {:pulse_id pulse-id}]
-                   PulseChannelRecipient [_              {:user_id          (rasta-id)
-                                                          :pulse_channel_id pc-id}]]
-     (send-pulse! (retrieve-pulse pulse-id)))))
+   (send-pulse! (retrieve-pulse pulse-id))))
 
 ;; Rows alert with no data
 (tt/expect-with-temp [Card                  [{card-id :id}  (checkins-query {:filter   [">",["field-id" (data/id :checkins :date)],"2017-10-24"]

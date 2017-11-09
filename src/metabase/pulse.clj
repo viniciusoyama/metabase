@@ -12,6 +12,9 @@
              [card :refer [Card]]
              [pulse :refer [Pulse]]]
             [metabase.pulse.render :as render]
+            [metabase.util
+             [ui-logic :as ui]
+             [urls :as urls]]
             [metabase.util.urls :as urls]
             [schema.core :as s]
             [toucan.db :as db])
@@ -47,16 +50,6 @@
                                  (System/getProperty "user.timezone"))]
     (TimeZone/getTimeZone timezone-str)))
 
-(defn- create-pulse-notification [{:keys [id name] :as pulse} results recipients]
-  (log/debug (format "Sending Pulse (%d: %s) via Channel :email" id name))
-  (let [email-subject    (str "Pulse: " name)
-        email-recipients (filterv u/is-email? (map :email recipients))
-        timezone         (-> results first :card defaulted-timezone)]
-    {:subject      email-subject
-     :recipients   email-recipients
-     :message-type :attachments
-     :message      (messages/render-pulse-email timezone pulse results)}))
-
 (defn- first-question-name [pulse]
   (-> pulse :cards first :name))
 
@@ -78,31 +71,6 @@
 
     nil))
 
-(defn- create-alert-notification [{:keys [id] :as pulse} results recipients]
-  (log/debug (format "Sending Pulse (%d: %s) via Channel :email" id name))
-  (let [condition-kwd    (messages/pulse->alert-condition-kwd pulse)
-        email-subject    (format "Metabase alert: %s has %s"
-                                 (first-question-name pulse)
-                                 (get alert-notification-condition-text condition-kwd))
-        email-recipients (filterv u/is-email? (map :email recipients))
-        timezone         (-> results first :card defaulted-timezone)]
-    {:subject      email-subject
-     :recipients   email-recipients
-     :message-type :attachments
-     :message      (messages/render-alert-email timezone pulse results (find-goal-value results))}))
-
-(defn- send-email-pulse!
-  "Send a `Pulse` email given a list of card results to render and a list of recipients to send to."
-  [{:keys [subject recipients message-type message]}]
-  (email/send-message!
-    :subject      subject
-    :recipients   recipients
-    :message-type message-type
-    :message      message))
-
-(defn- alert? [pulse]
-  (boolean (:alert_condition pulse)))
-
 (defn create-slack-attachment-data
   "Returns a seq of slack attachment data structures, used in `create-and-upload-slack-attachments!`"
   [card-results]
@@ -115,18 +83,6 @@
        :channel-id channel-id
        :fallback   card-name})))
 
-(defn- create-slack-alert-notification [pulse results channel-id]
-  (log/debug (u/format-color 'cyan "Sending Alert (%d: %s) via Slack" (:id pulse) (:name pulse)))
-  {:channel-id channel-id
-   :message (str "Alert: " (first-question-name pulse))
-   :attachments (create-slack-attachment-data results)})
-
-(defn- create-slack-pulse-notification [pulse results channel-id]
-  (log/debug (u/format-color 'cyan "Sending Pulse (%d: %s) via Slack" (:id pulse) (:name pulse)))
-  {:channel-id channel-id
-   :message (str "Pulse: " (:name pulse))
-   :attachments (create-slack-attachment-data results)})
-
 (defn create-and-upload-slack-attachments!
   "Create an attachment in Slack for a given Card by rendering its result into an image and uploading it."
   [attachments]
@@ -136,13 +92,6 @@
        (-> attachment-data
            (select-keys [:title :title_link :fallback])
            (assoc :image_url slack-file-url))))))
-
-(defn- send-slack-pulse!
-  "Post a `Pulse` to a slack channel given a list of card results to render and details about the slack destination."
-  [{:keys [channel-id message attachments]}]
-  {:pre [(string? channel-id)]}
-  (let [attachments (create-and-upload-slack-attachments! attachments)]
-    (slack/post-chat-message! channel-id message attachments)))
 
 (defn- is-card-empty?
   "Check if the card is empty"
@@ -158,92 +107,10 @@
   [results]
   (every? is-card-empty? results))
 
-(defn- send-notifications! [notifications]
-  (doseq [notification notifications]
-    (if (contains? notification :channel-id)
-      (send-slack-pulse! notification)
-      (send-email-pulse! notification))))
-
-(defn- rows-alert? [pulse]
-  (= "rows" (:alert_condition pulse)))
-
-(defn- goal-alert? [pulse]
-  (= "goal" (:alert_condition pulse)))
-
-(defn- dimension-column?
-  "A dimension column is any non-aggregation column"
-  [col]
-  (not= :aggregation (:source col)))
-
-(defn- summable-column?
-  "A summable column is any numeric column that isn't a special type like an FK or PK. It also excludes unix
-  timestamps that are numbers, but with a special type of DateTime"
-  [{:keys [base_type special_type]}]
-  (and (or (isa? base_type :type/Number)
-           (isa? special_type :type/Number))
-       (not (isa? special_type :type/Special))
-       (not (isa? special_type :type/DateTime))))
-
-(defn- metric-column?
-  "A metric column is any non-breakout column that is summable (numeric that isn't a special type like an FK/PK/Unix
-  timestamp)"
-  [col]
-  (and (not= :breakout (:source col))
-       (summable-column? col)))
-
-(defn- default-goal-column-index
-  "For graphs with goals, this function returns the index of the default column that should be used to compare against
-  the goal. This follows the frontend code getDefaultLineAreaBarColumns closely with a slight change (detailed in the
-  code)"
-  [results]
-  (let [graph-type (get-in results [:card :display])
-        [col-1 col-2 col-3 :as all-cols] (get-in results [:result :data :cols])
-        cols-count (count all-cols)]
-
-    (cond
-      ;; Progress goals return a single row and column, compare that
-      (= :progress graph-type)
-      0
-
-      ;; Called DIMENSION_DIMENSION_METRIC in the UI, grab the metric third column for comparison
-      (and (= cols-count 3)
-           (dimension-column? col-1)
-           (dimension-column? col-2)
-           (metric-column? col-3))
-      2
-
-      ;; Called DIMENSION_METRIC in the UI, use the metric column for comparison
-      (and (= cols-count 2)
-           (dimension-column? col-1)
-           (metric-column? col-2))
-      1
-
-      ;; Called DIMENSION_METRIC_METRIC in the UI, use the metric column for comparison. The UI returns all of the
-      ;; metric columns here, but that causes an issue around which column the user intended to compare to the
-      ;; goal. The below code always takes the first metric column, this might diverge from the UI
-      (and (>= cols-count 3)
-           (dimension-column? col-1)
-           (every? metric-column? (rest all-cols)))
-      1
-
-      ;; If none of the above is true, return nil as we don't know what to compare the goal to
-      :else nil)))
-
-(defn- column-name->index [results ^String column-name]
-  (when column-name
-    (first (map-indexed (fn [idx column]
-                          (when (.equalsIgnoreCase column-name (:name column))
-                            idx))
-                        (get-in results [:result :data :cols])))))
-
-(defn- goal-comparison-column [result]
-  (or (column-name->index result (get-in result [:card :visualization_settings :graph.metrics]))
-      (default-goal-column-index result)))
-
 (defn- goal-met? [{:keys [alert_above_goal] :as pulse} results]
   (let [first-result    (first results)
         goal-comparison (if alert_above_goal <= >=)
-        comparison-col-index (goal-comparison-column first-result)
+        comparison-col-index (ui/goal-comparison-column first-result)
         goal-val (find-goal-value first-result)]
 
     (when-not (and goal-val comparison-col-index)
@@ -256,23 +123,99 @@
             (goal-comparison goal-val (nth row comparison-col-index)))
           (get-in first-result [:result :data :rows]))))
 
-(defn- should-send-notification?
-  [{:keys [alert_condition] :as pulse} results]
+(defn- alert-or-pulse [pulse]
+  (if (:alert_condition pulse)
+    :alert
+    :pulse))
+
+(defmulti ^:private should-send-notification?
+  "Returns true if given the pulse type and resultset a new notification (pulse or alert) should be sent"
+  (fn [pulse results] (alert-or-pulse pulse)))
+
+(defmethod should-send-notification? :alert
+  [{:keys [alert_condition] :as alert} results]
   (cond
-    (and (alert? pulse)
-         (rows-alert? pulse))
+    (= "rows" alert_condition)
     (not (are-all-cards-empty? results))
 
-    (and (alert? pulse)
-         (goal-alert? pulse))
-    (goal-met? pulse results)
-
-    (and (not (alert? pulse))
-         (:skip_if_empty pulse))
-    (not (are-all-cards-empty? results))
+    (= "goal" alert_condition)
+    (goal-met? alert results)
 
     :else
+    (throw (IllegalArgumentException. (format "Unrecognized alert with condition '%s'" alert_condition)))))
+
+(defmethod should-send-notification? :pulse
+  [{:keys [alert_condition] :as pulse} results]
+  (if (:skip_if_empty pulse)
+    (not (are-all-cards-empty? results))
     true))
+
+(defmulti ^:private create-notification
+  "Polymorphoic function for creating notifications. This logic is different for pulse type (i.e. alert vs. pulse) and
+  channel_type (i.e. email vs. slack)"
+  (fn [pulse _ {:keys [channel_type] :as channel}]
+    [(alert-or-pulse pulse) channel_type]))
+
+(defmethod create-notification [:pulse :email]
+  [{:keys [id name] :as pulse} results {:keys [recipients] :as channel}]
+  (log/debug (format "Sending Pulse (%d: %s) via Channel :email" id name))
+  (let [email-subject    (str "Pulse: " name)
+        email-recipients (filterv u/is-email? (map :email recipients))
+        timezone         (-> results first :card defaulted-timezone)]
+    {:subject      email-subject
+     :recipients   email-recipients
+     :message-type :attachments
+     :message      (messages/render-pulse-email timezone pulse results)}))
+
+(defmethod create-notification [:pulse :slack]
+  [pulse results {{channel-id :channel} :details :as channel}]
+  (log/debug (u/format-color 'cyan "Sending Pulse (%d: %s) via Slack" (:id pulse) (:name pulse)))
+  {:channel-id channel-id
+   :message (str "Pulse: " (:name pulse))
+   :attachments (create-slack-attachment-data results)})
+
+(defmethod create-notification [:alert :email]
+  [{:keys [id] :as pulse} results {:keys [recipients] :as channel}]
+  (log/debug (format "Sending Pulse (%d: %s) via Channel :email" id name))
+  (let [condition-kwd    (messages/pulse->alert-condition-kwd pulse)
+        email-subject    (format "Metabase alert: %s has %s"
+                                 (first-question-name pulse)
+                                 (get alert-notification-condition-text condition-kwd))
+        email-recipients (filterv u/is-email? (map :email recipients))
+        timezone         (-> results first :card defaulted-timezone)]
+    {:subject      email-subject
+     :recipients   email-recipients
+     :message-type :attachments
+     :message      (messages/render-alert-email timezone pulse results (find-goal-value results))}))
+
+(defmethod create-notification [:alert :slack]
+  [pulse results {{channel-id :channel} :details :as channel}]
+  (log/debug (u/format-color 'cyan "Sending Alert (%d: %s) via Slack" (:id pulse) (:name pulse)))
+  {:channel-id channel-id
+   :message (str "Alert: " (first-question-name pulse))
+   :attachments (create-slack-attachment-data results)})
+
+(defmulti ^:private send-notification!
+  "Invokes the side-affecty function for sending emails/slacks depending on the notification type"
+  (fn [{:keys [channel-id] :as notification}]
+    (if channel-id :slack :email)))
+
+(defmethod send-notification! :slack
+  [{:keys [channel-id message attachments]}]
+  (let [attachments (create-and-upload-slack-attachments! attachments)]
+    (slack/post-chat-message! channel-id message attachments)))
+
+(defmethod send-notification! :email
+  [{:keys [subject recipients message-type message]}]
+  (email/send-message!
+    :subject      subject
+    :recipients   recipients
+    :message-type message-type
+    :message      message))
+
+(defn- send-notifications! [notifications]
+  (doseq [notification notifications]
+    (send-notification! notification)))
 
 (defn- pulse->notifications [{:keys [cards channel-ids], :as pulse}]
   (let [results     (for [card  cards
@@ -286,16 +229,8 @@
         (db/delete! Pulse :id (:id pulse)))
 
       (for [channel-id channel-ids
-            :let [{:keys [channel_type details recipients]} (some #(when (= channel-id (:id %)) %)
-                                                                  (:channels pulse))]]
-        (case (keyword channel_type)
-          :email ((if (alert? pulse)
-                    create-alert-notification
-                    create-pulse-notification) pulse results recipients)
-          :slack ((if (alert? pulse)
-                    create-slack-alert-notification
-                    create-slack-pulse-notification)
-                  pulse results (:channel details)))))))
+            :let [channel (some #(when (= channel-id (:id %)) %) (:channels pulse))]]
+        (create-notification pulse results channel)))))
 
 (defn send-pulse!
   "Execute and Send a `Pulse`, optionally specifying the specific `PulseChannels`.  This includes running each
