@@ -10,6 +10,7 @@ import { CreateAlertModalContent, UpdateAlertModalContent } from "metabase/query
 import _ from "underscore";
 import cx from "classnames";
 import cxs from 'cxs';
+import { withoutJustUnsubscribedAlerts } from "metabase-lib/lib/Alert";
 
 const unsubscribedClasses = cxs ({
     marginLeft: '10px'
@@ -61,7 +62,8 @@ export class AlertListPopoverContent extends Component {
         const [ownAlerts, othersAlerts] = _.partition(questionAlerts, this.isCreatedByCurrentUser)
         // user's own alert should be shown first if it exists
         const sortedQuestionAlerts = [...ownAlerts, ...othersAlerts]
-        const hasOwnAndOthers = ownAlerts.length > 0 && othersAlerts.length > 0
+        const hasOwnAlerts = withoutJustUnsubscribedAlerts(ownAlerts).length > 0
+        const hasOwnAndOthers = hasOwnAlerts && withoutJustUnsubscribedAlerts(othersAlerts).length > 0
 
         return (
             <div className={popoverClasses}>
@@ -75,7 +77,7 @@ export class AlertListPopoverContent extends Component {
                         />)
                     }
                 </ul>
-                { ownAlerts.length === 0 &&
+                { !hasOwnAlerts &&
                     <div className="border-top p2 bg-light-blue">
                         <a className="link flex align-center text-bold text-small" onClick={this.onAdd}>
                             <Icon name="add" className={ownAlertClasses} /> {t`Set up your own alert`}
@@ -100,15 +102,21 @@ export class AlertListItem extends Component {
     }
 
     state = {
-        unsubscribed: false,
+        unsubscribingProgress: null,
+        hasJustUnsubscribed: false,
         editing: false
     }
 
     onUnsubscribe = async () => {
         const { alert } = this.props
 
-        await this.props.unsubscribeFromAlert(alert)
-        this.setState({ unsubscribed: true })
+        try {
+            this.setState({ unsubscribingProgress: t`Unsubscribing...` })
+            await this.props.unsubscribeFromAlert(alert)
+            this.setState({ hasJustUnsubscribed: true })
+        } catch(e) {
+            this.setState({ unsubscribingProgress: t`Unsubscribing failed` })
+        }
     }
 
     onEdit = () => {
@@ -124,7 +132,7 @@ export class AlertListItem extends Component {
 
     render() {
         const { user, alert, highlight } = this.props
-        const { editing, unsubscribed } = this.state
+        const { editing, hasJustUnsubscribed, unsubscribingProgress } = this.state
 
         const isAdmin = user.is_superuser
         const isCurrentUser = alert.creator.id === user.id
@@ -134,8 +142,18 @@ export class AlertListItem extends Component {
         const slackChannel = alert.channels.find((c) => c.channel_type === "slack")
         const slackEnabled = slackChannel && slackChannel.enabled
 
-        if (unsubscribed) {
-            return <UnsubscribedListItem />
+        if (alert.unsubscribed_local_state) {
+            if (hasJustUnsubscribed) {
+                return <UnsubscribedListItem />
+            } else {
+                // Don't render the alert list item if we have unsubscribed earlier
+                // This is relevant scenario only if the page isn't refreshed after an unsubscription
+                // because the alert list API endpoint doesn't include unsubscribed alerts.
+                // The `alert.unsubscribed_local_state` property exists only in the frontend and exists solely because
+                // if we removed the alert from alerts list immediately after unsubscription, then it would
+                // be hard to display the unsubscription status with UnsubscribedListItem.
+                return null
+            }
         }
 
         return (
@@ -148,7 +166,8 @@ export class AlertListItem extends Component {
                         </div>
                         <div className={`${unsubscribeButtonClasses} ml-auto text-bold text-small`}>
                             { (isAdmin || isCurrentUser) && <a className="link" onClick={this.onEdit}>{jt`Edit`}</a> }
-                            { !isAdmin && <a className="link ml2" onClick={this.onUnsubscribe}>{jt`Unsubscribe`}</a> }
+                            { !isAdmin && !unsubscribingProgress && <a className="link ml2" onClick={this.onUnsubscribe}>{jt`Unsubscribe`}</a> }
+                            { unsubscribingProgress && <span> {unsubscribingProgress}</span>}
                         </div>
                     </div>
 

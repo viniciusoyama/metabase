@@ -118,13 +118,18 @@ const removeAlertReducer = (state, { payload: alertId }) => ({
     result: _.omit(state.result || {}, alertId)
 })
 
+const markAlertAsUnsubscribedReducer = (state, { payload: alertId }) => ({
+    ...state,
+    result: _.map(state.result, (alert) => alert.id === alertId ? { ...alert, unsubscribed_local_state: true } : alert)
+})
+
 const alerts = handleActions({
     ...fetchAllAlertsRequest.getReducers(),
     ...fetchAlertsForQuestionRequest.getReducers(),
     ...createAlertRequest.getReducers(),
     ...updateAlertRequest.getReducers(),
-    [UNSUBSCRIBE_FROM_ALERT]: removeAlertReducer,
-    [DELETE_ALERT]: removeAlertReducer
+    [DELETE_ALERT]: removeAlertReducer,
+    [UNSUBSCRIBE_FROM_ALERT]: markAlertAsUnsubscribedReducer,
 }, []);
 
 export default combineReducers({

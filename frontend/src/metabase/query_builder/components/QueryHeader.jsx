@@ -39,6 +39,7 @@ import { AlertListPopoverContent } from "metabase/query_builder/components/Alert
 import { getQuestionAlerts } from "metabase/query_builder/selectors";
 import { getUser } from "metabase/home/selectors";
 import { fetchAlertsForQuestion } from "metabase/alert/alert";
+import { withoutJustUnsubscribedAlerts } from "metabase-lib/lib/Alert";
 
 const mapStateToProps = (state, props) => ({
     questionAlerts: getQuestionAlerts(state),
@@ -476,7 +477,7 @@ export default class QueryHeader extends Component {
                     <EntityMenu
                         triggerIcon='burger'
                         items={[
-                            (!isNew && Object.values(questionAlerts).length > 0)
+                            (!isNew && withoutJustUnsubscribedAlerts(Object.values(questionAlerts)).length > 0)
                                 ? updateAlertItem
                                 : (isNew ? createAlertAfterSavingQuestionItem : createAlertItem)
                         ]}

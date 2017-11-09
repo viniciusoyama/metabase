@@ -21,7 +21,7 @@ export default class ButtonWithStatus extends Component {
         onClickOperation: (any) => Promise<void>,
         titleForState?: string[],
         disabled?: boolean,
-        className?: string
+        className?: string,
     }
 
     state = {
