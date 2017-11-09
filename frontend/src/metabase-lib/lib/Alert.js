@@ -8,11 +8,15 @@ export type AlertType =
     | ALERT_TYPE_PROGRESS_BAR_GOAL;
 
 export const getDefaultAlert = (question, user) => {
-    const alertType = question.alertType()
+    const alertType = question.alertType();
 
     const typeDependentAlertFields = alertType === ALERT_TYPE_ROWS
         ? { alert_condition: "rows", alert_first_only: false }
-        : { alert_condition: "goal", alert_first_only: true, alert_above_goal: true }
+        : {
+              alert_condition: "goal",
+              alert_first_only: true,
+              alert_above_goal: true
+          };
 
     const defaultEmailChannel = {
         enabled: true,
@@ -22,15 +26,15 @@ export const getDefaultAlert = (question, user) => {
         schedule_frame: null,
         schedule_hour: 0,
         schedule_type: "daily"
-    }
+    };
 
     return {
         card: { id: question.id() },
         channels: [defaultEmailChannel],
         ...typeDependentAlertFields
-    }
-}
+    };
+};
 
 // see AlertListItem for an explanation of `unsubscribed_local_state`
-export const withoutJustUnsubscribedAlerts = (alertsArray) =>
-    alertsArray.filter((alert) => !alert.unsubscribed_local_state)
+export const withoutJustUnsubscribedAlerts = alertsArray =>
+    alertsArray.filter(alert => !alert.unsubscribed_local_state);
