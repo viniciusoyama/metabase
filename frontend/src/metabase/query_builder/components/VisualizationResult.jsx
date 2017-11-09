@@ -59,7 +59,7 @@ export default class VisualizationResult extends Component {
                     }
                 />
                 { showCreateAlertModal && <Modal full onClose={this.onCloseCreateAlertModal}>
-                    <CreateAlertModalContent onClose={this.onCloseCreateAlertModal} />
+                    <CreateAlertModalContent onCancel={this.onCloseCreateAlertModal} onAlertCreated={this.onCloseCreateAlertModal} />
                 </Modal> }
             </div>
         } else {

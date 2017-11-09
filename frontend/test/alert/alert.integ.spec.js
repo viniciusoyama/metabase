@@ -1,6 +1,8 @@
 import {
     createSavedQuestion,
-    createTestStore, forBothAdminsAndNormalUsers, useSharedAdminLogin,
+    createTestStore,
+    forBothAdminsAndNormalUsers,
+    useSharedAdminLogin,
     useSharedNormalLogin
 } from "__support__/integrated_tests";
 import {
@@ -8,7 +10,8 @@ import {
 } from "__support__/enzyme_utils"
 
 import { mount } from "enzyme";
-import { AlertApi, CardApi, PulseApi } from "metabase/services";
+import { setIn } from "icepick";
+import { AlertApi, CardApi, PulseApi, UserApi } from "metabase/services";
 import Question from "metabase-lib/lib/Question";
 import * as Urls from "metabase/lib/urls";
 import { INITIALIZE_QB, QUERY_COMPLETED } from "metabase/query_builder/actions";
@@ -32,23 +35,35 @@ import Radio from "metabase/components/Radio";
 import { getQuestionAlerts } from "metabase/query_builder/selectors";
 import { FETCH_PULSE_FORM_INPUT } from "metabase/pulse/actions";
 import ChannelSetupModal from "metabase/components/ChannelSetupModal";
+import { getDefaultAlert } from "metabase-lib/lib/Alert";
+import { getMetadata } from "metabase/selectors/metadata";
+import { AlertListItem, AlertListPopoverContent } from "metabase/query_builder/components/AlertListPopoverContent";
+
+async function removeAllCreatedAlerts() {
+    useSharedAdminLogin()
+    const alerts = await AlertApi.list()
+    await Promise.all(alerts.map((alert) => AlertApi.delete({ id: alert.id })))
+}
 
 describe("Alerts", () => {
     let rawDataQuestion = null;
     let timeSeriesQuestion = null;
-    let timeSeriesQuestionWithGoal = null;
+    let timeSeriesWithGoalQuestion = null;
     let progressBarQuestion = null;
 
     beforeAll(async () => {
         useSharedAdminLogin()
 
+        const store = await createTestStore()
+        const metadata = getMetadata(store.getState())
+
         rawDataQuestion = await createSavedQuestion(
-            Question.create({databaseId: 1, tableId: 1, metadata: null})
+            Question.create({databaseId: 1, tableId: 1, metadata })
                 .setDisplayName("Just raw, untamed data")
         )
 
         timeSeriesQuestion = await createSavedQuestion(
-            Question.create({databaseId: 1, tableId: 1, metadata: null})
+            Question.create({databaseId: 1, tableId: 1, metadata })
                 .query()
                 .addAggregation(["count"])
                 .addBreakout(["datetime-field", ["field-id", 1], "day"])
@@ -57,8 +72,8 @@ describe("Alerts", () => {
                 .setDisplayName("Time series line")
         )
 
-        timeSeriesQuestionWithGoal = await createSavedQuestion(
-            Question.create({databaseId: 1, tableId: 1, metadata: null})
+        timeSeriesWithGoalQuestion = await createSavedQuestion(
+            Question.create({databaseId: 1, tableId: 1, metadata })
                 .query()
                 .addAggregation(["count"])
                 .addBreakout(["datetime-field", ["field-id", 1], "day"])
@@ -69,7 +84,7 @@ describe("Alerts", () => {
         )
 
         progressBarQuestion = await createSavedQuestion(
-            Question.create({databaseId: 1, tableId: 1, metadata: null})
+            Question.create({databaseId: 1, tableId: 1, metadata })
                 .query()
                 .addAggregation(["count"])
                 .question()
@@ -82,7 +97,7 @@ describe("Alerts", () => {
     afterAll(async () => {
         await CardApi.delete({cardId: rawDataQuestion.id()})
         await CardApi.delete({cardId: timeSeriesQuestion.id()})
-        await CardApi.delete({cardId: timeSeriesQuestionWithGoal.id()})
+        await CardApi.delete({cardId: timeSeriesWithGoalQuestion.id()})
         await CardApi.delete({cardId: progressBarQuestion.id()})
     })
 
@@ -190,10 +205,7 @@ describe("Alerts", () => {
         })
         afterAll(async () => {
             PulseApi.form_input = normalFormInput
-
-            // remove all created alerts
-            const alerts = await AlertApi.list()
-            await Promise.all(alerts.map((alert) => AlertApi.delete({ id: alert.id })))
+            await removeAllCreatedAlerts()
         })
 
         it("should show you the first time educational screen", async () => {
@@ -278,7 +290,7 @@ describe("Alerts", () => {
                 MetabaseCookies.getHasSeenAlertSplash = () => true
 
                 const store = await createTestStore()
-                store.pushPath(Urls.question(timeSeriesQuestionWithGoal.id()))
+                store.pushPath(Urls.question(timeSeriesWithGoalQuestion.id()))
                 const app = mount(store.getAppContainer());
 
                 await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
@@ -318,13 +330,81 @@ describe("Alerts", () => {
         })
     })
 
-    describe("alert list", () => {
-        beforeAll(() => {
+    describe("alert list for a question", () => {
+        beforeAll(async () => {
+            // Both raw data and timeseries questions contain both an alert created by a normal user and by an admin.
+            // The difference is that
+
+
+            useSharedAdminLogin()
+            const adminUser = await UserApi.current();
+            await AlertApi.create(getDefaultAlert(timeSeriesWithGoalQuestion, adminUser))
+
             useSharedNormalLogin()
+            const normalUser = await UserApi.current();
+            await AlertApi.create(getDefaultAlert(timeSeriesWithGoalQuestion, normalUser))
+            await AlertApi.create(getDefaultAlert(rawDataQuestion, normalUser))
+
+            useSharedAdminLogin()
+            const defaultRawDataAlert = getDefaultAlert(rawDataQuestion, adminUser)
+            const alertWithTwoRecipients = setIn(
+                defaultRawDataAlert,
+                ["channels", 0, "recipients"],
+                [adminUser, normalUser]
+            )
+            await AlertApi.create(alertWithTwoRecipients)
         })
 
-        it("should let you see all created alerts", () => {
+        afterAll(async () => {
+            await removeAllCreatedAlerts()
+        })
 
+        it("should let you see all created alerts as an admin", async () => {
+            useSharedAdminLogin()
+            MetabaseCookies.getHasSeenAlertSplash = () => true
+
+            const store = await createTestStore()
+            store.pushPath(Urls.question(timeSeriesWithGoalQuestion.id()))
+            const app = mount(store.getAppContainer());
+
+            await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
+            await delay(500);
+
+            const actionsMenu = app.find(QueryHeader).find(EntityMenu)
+            click(actionsMenu.childAt(0))
+
+            const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
+            click(alertsMenuItem)
+
+            const alertListPopover = actionsMenu.find(AlertListPopoverContent)
+            expect(alertListPopover.length).toBe(1)
+
+            const alertListItems = alertListPopover.find(AlertListItem)
+            expect(alertListItems.length).toBe(2)
+        })
+
+        it("should let you see your own alerts as a non-admin", async () => {
+            useSharedNormalLogin()
+            MetabaseCookies.getHasSeenAlertSplash = () => true
+
+            const store = await createTestStore()
+            store.pushPath(Urls.question(timeSeriesWithGoalQuestion.id()))
+            const app = mount(store.getAppContainer());
+
+            await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
+            await delay(500);
+
+            const actionsMenu = app.find(QueryHeader).find(EntityMenu)
+            click(actionsMenu.childAt(0))
+
+            const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
+            click(alertsMenuItem)
+
+            const alertListPopover = actionsMenu.find(AlertListPopoverContent)
+            expect(alertListPopover.length).toBe(1)
+
+            const alertListItems = alertListPopover.find(AlertListItem)
+            expect(alertListItems.length).toBe(1)
         })
     })
 })

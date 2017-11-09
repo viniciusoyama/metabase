@@ -69,7 +69,7 @@ export const updateAlert = (alert) => {
         await dispatch(updateAlertRequest.trigger(alert))
 
         dispatch(addUndo(createUndo({
-            type: "create-alert",
+            type: "update-alert",
             // eslint-disable-next-line react/display-name
             message: () => <div className="flex align-center text-bold"><Icon name="alertConfirm" size="19" className="mr2 text-success" />Your alert was updated.</div>,
             action: null // alert updating is not undoable
@@ -101,6 +101,13 @@ const deleteAlertRequest = new RestfulRequest({
 export const deleteAlert = (alertId) => {
     return async (dispatch, getState) => {
         await dispatch(deleteAlertRequest.trigger({ id: alertId }))
+
+        dispatch(addUndo(createUndo({
+            type: "delete-alert",
+            // eslint-disable-next-line react/display-name
+            message: () => <div className="flex align-center text-bold"><Icon name="alertConfirm" size="19" className="mr2 text-success" />The alert was successfully deleted.</div>,
+            action: null // alert deletion is not undoable
+        })));
         dispatch.action(DELETE_ALERT, alertId)
     }
 }

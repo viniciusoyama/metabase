@@ -27,9 +27,14 @@ const popoverClasses = cxs ({
 
 @connect((state) => ({ questionAlerts: getQuestionAlerts(state), user: getUser(state) }), null)
 export class AlertListPopoverContent extends Component {
+    props: {
+        questionAlerts: any[],
+        setMenuFreeze: (boolean) => void,
+        closeMenu: () => void
+    }
+
     state = {
-        adding: false,
-        ownAlertRemovedAsNonAdmin: false
+        adding: false
     }
 
     onAdd = () => {
@@ -37,13 +42,10 @@ export class AlertListPopoverContent extends Component {
         this.setState({ adding: true })
     }
 
-    onEndAdding = () => {
+    onEndAdding = (closeMenu = false) => {
         this.props.setMenuFreeze(false)
         this.setState({ adding: false })
-    }
-
-    onRemovedOwnAlert = () => {
-        this.setState( { ownAlertRemovedAsNonAdmin: true })
+        if (closeMenu) this.props.closeMenu()
     }
 
     isCreatedByCurrentUser = (alert) => {
@@ -52,8 +54,8 @@ export class AlertListPopoverContent extends Component {
     }
 
     render() {
-        const { questionAlerts, setMenuFreeze, user } = this.props;
-        const { adding, ownAlertRemovedAsNonAdmin } = this.state
+        const { questionAlerts, setMenuFreeze, user, closeMenu } = this.props;
+        const { adding } = this.state
 
         const isNonAdmin = !user.is_superuser
         const [ownAlerts, othersAlerts] = _.partition(questionAlerts, this.isCreatedByCurrentUser)
@@ -64,12 +66,11 @@ export class AlertListPopoverContent extends Component {
         return (
             <div className={popoverClasses}>
                 <ul>
-                    { ownAlertRemovedAsNonAdmin && <UnsubscribedListItem /> }
                     { Object.values(sortedQuestionAlerts).map((alert) =>
                         <AlertListItem
                             alert={alert}
                             setMenuFreeze={setMenuFreeze}
-                            onRemovedOwnAlert={this.onRemovedOwnAlert}
+                            closeMenu={closeMenu}
                             highlight={isNonAdmin && hasOwnAndOthers && this.isCreatedByCurrentUser(alert)}
                         />)
                     }
@@ -82,7 +83,7 @@ export class AlertListPopoverContent extends Component {
                     </div>
                 }
                 { adding && <Modal full onClose={this.onEndAdding}>
-                    <CreateAlertModalContent onClose={this.onEndAdding} />
+                    <CreateAlertModalContent onCancel={this.onEndAdding} onAlertCreated={() => this.onEndAdding(true) } />
                 </Modal> }
             </div>
         )
@@ -95,7 +96,7 @@ export class AlertListItem extends Component {
         alert: any,
         user: any,
         setMenuFreeze: (boolean) => void,
-        onRemovedOwnAlert: (boolean) => void
+        closeMenu: () => void
     }
 
     state = {
@@ -104,21 +105,10 @@ export class AlertListItem extends Component {
     }
 
     onUnsubscribe = async () => {
-        const { user, alert, deleteAlert, onRemovedOwnAlert } = this.props
+        const { alert } = this.props
 
-        const isAdmin = user.is_superuser
-        const isCurrentUser = alert.creator.id === user.id
-
-        if (isCurrentUser && !isAdmin) {
-            // for non-admins, unsubscribing from your own alert means removing it
-            await deleteAlert(alert.id)
-            // it gets cleared from the list immediately so we have to add the "unsubscribed"
-            // list item in the parent container
-            onRemovedOwnAlert()
-        } else {
-            await this.props.unsubscribeFromAlert(alert)
-            this.setState({ unsubscribed: true })
-        }
+        await this.props.unsubscribeFromAlert(alert)
+        this.setState({ unsubscribed: true })
     }
 
     onEdit = () => {
@@ -126,9 +116,10 @@ export class AlertListItem extends Component {
         this.setState({ editing: true })
     }
 
-    onEndEditing = () => {
+    onEndEditing = (shouldCloseMenu = false) => {
         this.props.setMenuFreeze(false)
         this.setState({ editing: false })
+        if (shouldCloseMenu) this.props.closeMenu()
     }
 
     render() {
@@ -184,7 +175,11 @@ export class AlertListItem extends Component {
                 </div>
 
                 { editing && <Modal full onClose={this.onEndEditing}>
-                    <UpdateAlertModalContent alert={alert} onClose={this.onEndEditing} />
+                    <UpdateAlertModalContent
+                        alert={alert}
+                        onCancel={this.onEndEditing}
+                        onAlertUpdated={() => this.onEndEditing(true)}
+                    />
                 </Modal> }
             </li>
         )

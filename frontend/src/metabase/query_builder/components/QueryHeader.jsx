@@ -468,7 +468,7 @@ export default class QueryHeader extends Component {
             const updateAlertItem = {
                 title: t`Alerts are on`,
                 icon: "alert",
-                content: (toggleMenu, setMenuFreeze) => <AlertListPopoverContent onCancel={toggleMenu} setMenuFreeze={setMenuFreeze} />
+                content: (toggleMenu, setMenuFreeze) => <AlertListPopoverContent closeMenu={toggleMenu} setMenuFreeze={setMenuFreeze} />
             }
 
             buttonSections.push([
@@ -547,7 +547,7 @@ export default class QueryHeader extends Component {
                 </Modal>
 
                 <Modal full isOpen={this.state.modal === "create-alert"} onClose={this.onCloseModal}>
-                    <CreateAlertModalContent onClose={this.onCloseModal} />
+                    <CreateAlertModalContent onCancel={this.onCloseModal} onAlertCreated={this.onCloseModal} />
                 </Modal>
 
                 <Modal isOpen={this.state.modal === "save-question-before-alert"} onClose={this.onCloseModal}>
