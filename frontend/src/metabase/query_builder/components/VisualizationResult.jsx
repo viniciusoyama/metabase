@@ -34,7 +34,7 @@ export default class VisualizationResult extends Component {
     }
 
     render() {
-        const { question, isObjectDetail, lastRunDatasetQuery, navigateToNewCardInsideQB, result, results, ...props } = this.props
+        const { question, isDirty, isObjectDetail, lastRunDatasetQuery, navigateToNewCardInsideQB, result, results, ...props } = this.props
         const { showCreateAlertModal } = this.state
 
         const noResults = datasetContainsNoResults(result.data);
@@ -49,7 +49,7 @@ export default class VisualizationResult extends Component {
                     message='This may be the answer you’re looking for. If not, try removing or changing your filters to make them less specific.'
                     action={
                         <div>
-                            { supportsRowsPresentAlert && <p>
+                            { supportsRowsPresentAlert && !isDirty && <p>
                                 You can also <a className="link" onClick={this.showCreateAlertModal}>get an alert</a> when there are any results.
                             </p> }
                             <button className="Button" onClick={() => window.history.back() }>
