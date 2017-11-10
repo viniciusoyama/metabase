@@ -262,10 +262,14 @@
            :skip_if_empty     false}
           alert-map)))
 
+(defn- default-pulse-row []
+  {:alert_condition  "rows"
+   :alert_first_only false
+   :creator_id       (user->id :rasta)
+   :name             nil})
+
 ;; Non-admin users can update alerts they created
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
-                                             :alert_first_only  false
-                                             :creator_id        (user->id :rasta)}]
+(tt/expect-with-temp [Pulse [{pulse-id :id}                (default-pulse-row)]
                       Card  [{card-id :id :as card}]
                       PulseCard             [_             {:pulse_id pulse-id
                                                             :card_id  card-id
@@ -280,10 +284,7 @@
      (default-alert-req card pc-id))))
 
 ;; Admin users can update any alert
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
-                                             :alert_first_only  false
-                                             :creator_id        (user->id :rasta)
-                                             :name              "Original Alert Name"}]
+(tt/expect-with-temp [Pulse [{pulse-id :id}                (default-pulse-row)]
                       Card  [{card-id :id :as card}]
                       PulseCard             [_             {:pulse_id pulse-id
                                                             :card_id  card-id
@@ -297,15 +298,29 @@
     ((alert-client :crowberto) :put 200 (format "alert/%d" pulse-id)
      (default-alert-req card pc-id))))
 
+;; Admin users can update any alert, changing the related alert attributes
+(tt/expect-with-temp [Pulse [{pulse-id :id}                (default-pulse-row)]
+                      Card  [{card-id :id :as card}]
+                      PulseCard             [_             {:pulse_id pulse-id
+                                                            :card_id  card-id
+                                                            :position 0}]
+                      PulseChannel          [{pc-id :id}   {:pulse_id pulse-id}]
+                      PulseChannelRecipient [{pcr-id :id}  {:user_id          (user->id :rasta)
+                                                            :pulse_channel_id pc-id}]]
+  (merge (default-alert card)
+         {:alert_first_only true, :alert_above_goal true, :alert_condition  "goal"})
+
+  (tu/with-model-cleanup [Pulse]
+    ((alert-client :crowberto) :put 200 (format "alert/%d" pulse-id)
+     (default-alert-req card pc-id {:alert_first_only true, :alert_above_goal true, :alert_condition "goal"}
+                        [(fetch-user :rasta)]))))
+
 (defn- setify-recipient-emails [results]
   (update results :channels (fn [channels]
                               (map #(update % :recipients set) channels))))
 
 ;; Admin users can add a recipieint, that recipient should be notified
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
-                                             :alert_first_only  false
-                                             :creator_id        (user->id :rasta)
-                                             :name              "Original Alert Name"}]
+(tt/expect-with-temp [Pulse [{pulse-id :id}                (default-pulse-row)]
                       Card  [{card-id :id :as card}]
                       PulseCard             [_             {:pulse_id pulse-id
                                                             :card_id  card-id
@@ -327,10 +342,7 @@
                             #"now getting alerts")]))
 
 ;; Admin users can remove a recipieint, that recipient should be notified
-(tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition  "rows"
-                                             :alert_first_only false
-                                             :creator_id       (user->id :rasta)
-                                             :name             "Original Alert Name"}]
+(tt/expect-with-temp [Pulse [{pulse-id :id} (default-pulse-row)]
                       Card  [{card-id :id :as card}]
                       PulseCard             [_              {:pulse_id pulse-id
                                                              :card_id  card-id
@@ -354,8 +366,7 @@
 ;; Non-admin users can't edit alerts they didn't create
 (tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false
-                                             :creator_id        (user->id :crowberto)
-                                             :name              "Original Alert Name"}]
+                                             :creator_id        (user->id :crowberto)}]
                       Card  [{card-id :id :as card}]
                       PulseCard             [_             {:pulse_id pulse-id
                                                             :card_id  card-id
@@ -371,8 +382,7 @@
 ;; Non-admin users can't edit alerts if they're not in the recipient list
 (tt/expect-with-temp [Pulse [{pulse-id :id} {:alert_condition   "rows"
                                              :alert_first_only  false
-                                             :creator_id        (user->id :rasta)
-                                             :name              "Original Alert Name"}]
+                                             :creator_id        (user->id :rasta)}]
                       Card  [{card-id :id :as card}]
                       PulseCard             [_             {:pulse_id pulse-id
                                                             :card_id  card-id

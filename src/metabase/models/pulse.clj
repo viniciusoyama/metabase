@@ -283,7 +283,9 @@
   [{:keys [id name cards channels skip-if-empty?] :as pulse}]
   (db/transaction
     ;; update the pulse itself
-    (db/update! Pulse id, :name name, :skip_if_empty skip-if-empty?)
+    (db/update-non-nil-keys! Pulse id (-> pulse
+                                          (select-keys [:name :alert_condition :alert_above_goal :alert_first_only])
+                                          (assoc :skip_if_empty skip-if-empty?)))
     ;; update cards (only if they changed). Order for the cards is important which is why we're not using select-field
     (when (not= cards (map :card_id (db/select [PulseCard :card_id], :pulse_id id, {:order-by [[:position :asc]]})))
       (update-pulse-cards! pulse cards))
