@@ -236,19 +236,27 @@
       :below)
     :rows))
 
+(defn- first-card
+  "Alerts only have a single card, so the alerts API accepts a `:card` key, while pulses have `:cards`. Depending on
+  whether the data comes from the alert API or pulse tasks, the card could be under `:card` or `:cards`"
+  [alert]
+  (or (:card alert)
+      (first (:cards alert))))
+
 (defn- default-alert-context
   ([alert]
    (default-alert-context alert nil))
-  ([{{card-id :id, card-name :name} :card :as alert} alert-condition-map]
-   (merge {:questionURL (url/card-url card-id)
-           :questionName card-name
-           :emailType    "alert"
-           :sectionStyle render/section-style
-           :colorGrey4   render/color-gray-4
-           :logoFooter   true}
-          (random-quote-context)
-          (when alert-condition-map
-            {:alertCondition (get alert-condition-map (pulse->alert-condition-kwd alert))}))))
+  ([alert alert-condition-map]
+   (let [{card-id :id, card-name :name} (first-card alert)]
+     (merge {:questionURL (url/card-url card-id)
+             :questionName card-name
+             :emailType    "alert"
+             :sectionStyle render/section-style
+             :colorGrey4   render/color-gray-4
+             :logoFooter   true}
+            (random-quote-context)
+            (when alert-condition-map
+              {:alertCondition (get alert-condition-map (pulse->alert-condition-kwd alert))})))))
 
 (defn- alert-results-condition-text [goal-value]
   {:meets (format "reached its goal of %s" goal-value)

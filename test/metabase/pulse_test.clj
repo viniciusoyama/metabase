@@ -29,7 +29,9 @@
        (= "image/png" content-type)
        (instance? java.io.File content)))
 
-(defn- checkins-query [query-map]
+(defn checkins-query
+  "Basic query that will return results for an alert"
+  [query-map]
   {:name          "Test card"
    :dataset_query {:database (data/id)
                    :type     :query
