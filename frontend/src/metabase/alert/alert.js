@@ -21,6 +21,7 @@ export const fetchAllAlerts = () => {
     }
 }
 
+export const FETCH_ALERTS_FOR_QUESTION_CLEAR_OLD_ALERTS = 'metabase/alerts/FETCH_ALERTS_FOR_QUESTION_CLEAR_OLD_ALERTS'
 export const FETCH_ALERTS_FOR_QUESTION = 'metabase/alerts/FETCH_ALERTS_FOR_QUESTION'
 const fetchAlertsForQuestionRequest = new RestfulRequest({
     endpoint: AlertApi.list_for_question,
@@ -29,6 +30,7 @@ const fetchAlertsForQuestionRequest = new RestfulRequest({
 })
 export const fetchAlertsForQuestion = (questionId) => {
     return async (dispatch, getState) => {
+        dispatch.action(FETCH_ALERTS_FOR_QUESTION_CLEAR_OLD_ALERTS, questionId)
         await dispatch(fetchAlertsForQuestionRequest.trigger({ questionId }))
         dispatch.action(FETCH_ALERTS_FOR_QUESTION)
     }
@@ -88,7 +90,10 @@ const unsubscribeFromAlertRequest = new RestfulRequest({
 export const unsubscribeFromAlert = (alert) => {
     return async (dispatch, getState) => {
         await dispatch(unsubscribeFromAlertRequest.trigger(alert))
-        dispatch.action(UNSUBSCRIBE_FROM_ALERT, alert.id)
+
+        // This delay lets us to show "You're unsubscribed" text in place of an
+        // alert list item for a while before removing the list item completely
+        setTimeout(() => dispatch.action(UNSUBSCRIBE_FROM_ALERT, alert.id), 5000)
     }
 }
 
@@ -118,18 +123,21 @@ const removeAlertReducer = (state, { payload: alertId }) => ({
     result: _.omit(state.result || {}, alertId)
 })
 
-const markAlertAsUnsubscribedReducer = (state, { payload: alertId }) => ({
-    ...state,
-    result: _.map(state.result, (alert) => alert.id === alertId ? { ...alert, unsubscribed_local_state: true } : alert)
-})
+const removeAlertsForQuestionReducer = (state, { payload: questionId }) => {
+    return ({
+        ...state,
+        result: _.omit(state.result || {}, (alert) => alert.card.id === questionId)
+    })
+}
 
 const alerts = handleActions({
     ...fetchAllAlertsRequest.getReducers(),
+    [FETCH_ALERTS_FOR_QUESTION_CLEAR_OLD_ALERTS]: removeAlertsForQuestionReducer,
     ...fetchAlertsForQuestionRequest.getReducers(),
     ...createAlertRequest.getReducers(),
     ...updateAlertRequest.getReducers(),
     [DELETE_ALERT]: removeAlertReducer,
-    [UNSUBSCRIBE_FROM_ALERT]: markAlertAsUnsubscribedReducer,
+    [UNSUBSCRIBE_FROM_ALERT]: removeAlertReducer,
 }, []);
 
 export default combineReducers({

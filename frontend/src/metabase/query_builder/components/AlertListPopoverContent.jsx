@@ -10,7 +10,6 @@ import { CreateAlertModalContent, UpdateAlertModalContent } from "metabase/query
 import _ from "underscore";
 import cx from "classnames";
 import cxs from 'cxs';
-import { withoutJustUnsubscribedAlerts } from "metabase-lib/lib/Alert";
 
 const unsubscribedClasses = cxs ({
     marginLeft: '10px'
@@ -35,7 +34,8 @@ export class AlertListPopoverContent extends Component {
     }
 
     state = {
-        adding: false
+        adding: false,
+        hasJustUnsubscribedFromOwnAlert: false
     }
 
     onAdd = () => {
@@ -54,16 +54,22 @@ export class AlertListPopoverContent extends Component {
         return alert.creator.id === user.id
     }
 
+    onUnsubscribe = (alert) => {
+        if (this.isCreatedByCurrentUser(alert)) {
+            this.setState({ hasJustUnsubscribedFromOwnAlert: true })
+        }
+    }
+
     render() {
         const { questionAlerts, setMenuFreeze, user, closeMenu } = this.props;
-        const { adding } = this.state
+        const { adding, hasJustUnsubscribedFromOwnAlert } = this.state
 
         const isNonAdmin = !user.is_superuser
         const [ownAlerts, othersAlerts] = _.partition(questionAlerts, this.isCreatedByCurrentUser)
         // user's own alert should be shown first if it exists
         const sortedQuestionAlerts = [...ownAlerts, ...othersAlerts]
-        const hasOwnAlerts = withoutJustUnsubscribedAlerts(ownAlerts).length > 0
-        const hasOwnAndOthers = hasOwnAlerts && withoutJustUnsubscribedAlerts(othersAlerts).length > 0
+        const hasOwnAlerts = ownAlerts.length > 0
+        const hasOwnAndOthers = hasOwnAlerts && othersAlerts.length > 0
 
         return (
             <div className={popoverClasses}>
@@ -74,10 +80,11 @@ export class AlertListPopoverContent extends Component {
                             setMenuFreeze={setMenuFreeze}
                             closeMenu={closeMenu}
                             highlight={isNonAdmin && hasOwnAndOthers && this.isCreatedByCurrentUser(alert)}
+                            onUnsubscribe={this.onUnsubscribe}
                         />)
                     }
                 </ul>
-                { !hasOwnAlerts &&
+                { (!hasOwnAlerts || hasJustUnsubscribedFromOwnAlert) &&
                     <div className="border-top p2 bg-light-blue">
                         <a className="link flex align-center text-bold text-small" onClick={this.onAdd}>
                             <Icon name="add" className={ownAlertClasses} /> {t`Set up your own alert`}
@@ -98,7 +105,8 @@ export class AlertListItem extends Component {
         alert: any,
         user: any,
         setMenuFreeze: (boolean) => void,
-        closeMenu: () => void
+        closeMenu: () => void,
+        onUnsubscribe: () => void
     }
 
     state = {
@@ -114,8 +122,9 @@ export class AlertListItem extends Component {
             this.setState({ unsubscribingProgress: t`Unsubscribing...` })
             await this.props.unsubscribeFromAlert(alert)
             this.setState({ hasJustUnsubscribed: true })
+            this.props.onUnsubscribe(alert)
         } catch(e) {
-            this.setState({ unsubscribingProgress: t`Unsubscribing failed` })
+            this.setState({ unsubscribingProgress: t`Failed to unsubscribe` })
         }
     }
 
@@ -142,18 +151,8 @@ export class AlertListItem extends Component {
         const slackChannel = alert.channels.find((c) => c.channel_type === "slack")
         const slackEnabled = slackChannel && slackChannel.enabled
 
-        if (alert.unsubscribed_local_state) {
-            if (hasJustUnsubscribed) {
-                return <UnsubscribedListItem />
-            } else {
-                // Don't render the alert list item if we have unsubscribed earlier
-                // This is relevant scenario only if the page isn't refreshed after an unsubscription
-                // because the alert list API endpoint doesn't include unsubscribed alerts.
-                // The `alert.unsubscribed_local_state` property exists only in the frontend and exists solely because
-                // if we removed the alert from alerts list immediately after unsubscription, then it would
-                // be hard to display the unsubscription status with UnsubscribedListItem.
-                return null
-            }
+        if (hasJustUnsubscribed) {
+            return <UnsubscribedListItem />
         }
 
         return (
@@ -167,7 +166,7 @@ export class AlertListItem extends Component {
                         <div className={`${unsubscribeButtonClasses} ml-auto text-bold text-small`}>
                             { (isAdmin || isCurrentUser) && <a className="link" onClick={this.onEdit}>{jt`Edit`}</a> }
                             { !isAdmin && !unsubscribingProgress && <a className="link ml2" onClick={this.onUnsubscribe}>{jt`Unsubscribe`}</a> }
-                            { unsubscribingProgress && <span> {unsubscribingProgress}</span>}
+                            { !isAdmin && unsubscribingProgress && <span> {unsubscribingProgress}</span>}
                         </div>
                     </div>
 

@@ -247,13 +247,11 @@ export default class Question {
             if (vizSettings["graph.show_goal"] === true) {
                 return ALERT_TYPE_TIMESERIES_GOAL;
             } else {
-                // TODO: What should happen if you have timeseries but no goal set?
+                return ALERT_TYPE_ROWS;
             }
         } else {
             return ALERT_TYPE_ROWS;
         }
-
-        return null;
     }
 
     /**

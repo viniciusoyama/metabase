@@ -39,7 +39,6 @@ import { AlertListPopoverContent } from "metabase/query_builder/components/Alert
 import { getQuestionAlerts } from "metabase/query_builder/selectors";
 import { getUser } from "metabase/home/selectors";
 import { fetchAlertsForQuestion } from "metabase/alert/alert";
-import { withoutJustUnsubscribedAlerts } from "metabase-lib/lib/Alert";
 
 const mapStateToProps = (state, props) => ({
     questionAlerts: getQuestionAlerts(state),
@@ -477,7 +476,7 @@ export default class QueryHeader extends Component {
                     <EntityMenu
                         triggerIcon='burger'
                         items={[
-                            (!isNew && withoutJustUnsubscribedAlerts(Object.values(questionAlerts)).length > 0)
+                            (!isNew && Object.values(questionAlerts).length > 0)
                                 ? updateAlertItem
                                 : (isNew ? createAlertAfterSavingQuestionItem : createAlertItem)
                         ]}
@@ -495,15 +494,16 @@ export default class QueryHeader extends Component {
         this.setState({ modal: null });
     }
 
-    showAlertsAfterQuestionSaved = async () => {
+    showAlertsAfterQuestionSaved = () => {
         const { questionAlerts, user } = this.props
 
         const hasAlertsCreatedByCurrentUser =
             Object.values(questionAlerts).some((alert) => alert.creator.id === user.id)
 
         if (hasAlertsCreatedByCurrentUser) {
+            // TODO Atte Keinänen 11/10/17: The question was replaced and there is already an alert created by current user.
+            // Should we show pop up the alerts list in this case or do nothing (as we do currently)?
             this.setState({ modal: null })
-            alert("The question was replaced and there is already an alert created by current user. Should we show pop up the alerts list now?")
         } else {
             this.setState({ modal: "create-alert" })
         }

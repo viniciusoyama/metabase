@@ -35,6 +35,3 @@ export const getDefaultAlert = (question, user) => {
     };
 };
 
-// see AlertListItem for an explanation of `unsubscribed_local_state`
-export const withoutJustUnsubscribedAlerts = alertsArray =>
-    alertsArray.filter(alert => !alert.unsubscribed_local_state);

@@ -523,6 +523,7 @@ export const setParameterValue = createAction(SET_PARAMETER_VALUE, (parameterId,
     return { id: parameterId, value };
 });
 
+// Used after a question is successfully created in QueryHeader component code
 export const NOTIFY_CARD_CREATED = "metabase/qb/NOTIFY_CARD_CREATED";
 export const notifyCardCreatedFn = createThunkAction(NOTIFY_CARD_CREATED, (card) => {
     return (dispatch, getState) => {
@@ -534,6 +535,7 @@ export const notifyCardCreatedFn = createThunkAction(NOTIFY_CARD_CREATED, (card)
     }
 });
 
+// Used after a question is successfully updated in QueryHeader component code
 export const NOTIFY_CARD_UPDATED = "metabase/qb/NOTIFY_CARD_UPDATED";
 export const notifyCardUpdatedFn = createThunkAction(NOTIFY_CARD_UPDATED, (card) => {
     return (dispatch, getState) => {
