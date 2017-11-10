@@ -34,4 +34,3 @@ export const getDefaultAlert = (question, user) => {
         ...typeDependentAlertFields
     };
 };
-

@@ -9,6 +9,7 @@ import {
     click, clickButton
 } from "__support__/enzyme_utils"
 
+import { fetchTableMetadata } from "metabase/redux/metadata";
 import { mount } from "enzyme";
 import { setIn } from "icepick";
 import { AlertApi, CardApi, PulseApi, UserApi } from "metabase/services";
@@ -23,26 +24,48 @@ import {
     AlertEducationalScreen,
     AlertSettingToggle,
     CreateAlertModalContent,
-    RawDataAlertTip
+    RawDataAlertTip, UpdateAlertModalContent
 } from "metabase/query_builder/components/AlertModals";
 import Button from "metabase/components/Button";
 import {
     CREATE_ALERT,
     FETCH_ALERTS_FOR_QUESTION,
+    UNSUBSCRIBE_FROM_ALERT,
+    UPDATE_ALERT,
 } from "metabase/alert/alert";
 import MetabaseCookies from "metabase/lib/cookies";
 import Radio from "metabase/components/Radio";
 import { getQuestionAlerts } from "metabase/query_builder/selectors";
-import { FETCH_PULSE_FORM_INPUT } from "metabase/pulse/actions";
+import { FETCH_PULSE_FORM_INPUT, FETCH_USERS } from "metabase/pulse/actions";
 import ChannelSetupModal from "metabase/components/ChannelSetupModal";
 import { getDefaultAlert } from "metabase-lib/lib/Alert";
 import { getMetadata } from "metabase/selectors/metadata";
 import { AlertListItem, AlertListPopoverContent } from "metabase/query_builder/components/AlertListPopoverContent";
 
+
 async function removeAllCreatedAlerts() {
     useSharedAdminLogin()
     const alerts = await AlertApi.list()
     await Promise.all(alerts.map((alert) => AlertApi.delete({ id: alert.id })))
+}
+
+const initQbWithAlertMenuItemClicked = async (question, { hasSeenAlertSplash = true } = {}) => {
+    MetabaseCookies.getHasSeenAlertSplash = () => hasSeenAlertSplash
+
+    const store = await createTestStore()
+    store.pushPath(Urls.question(question.id()))
+    const app = mount(store.getAppContainer());
+
+    await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
+    await delay(500);
+
+    const actionsMenu = app.find(QueryHeader).find(EntityMenu)
+    click(actionsMenu.childAt(0))
+
+    const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
+    click(alertsMenuItem)
+
+    return { store, app }
 }
 
 describe("Alerts", () => {
@@ -55,10 +78,16 @@ describe("Alerts", () => {
         useSharedAdminLogin()
 
         const store = await createTestStore()
+
+        // table metadata is needed for `Question.alertType()` calls
+        await store.dispatch(fetchTableMetadata(1))
         const metadata = getMetadata(store.getState())
 
         rawDataQuestion = await createSavedQuestion(
             Question.create({databaseId: 1, tableId: 1, metadata })
+                .query()
+                .addFilter(["=", ["field-id", 4], 123456])
+                .question()
                 .setDisplayName("Just raw, untamed data")
         )
 
@@ -210,19 +239,8 @@ describe("Alerts", () => {
 
         it("should show you the first time educational screen", async () => {
             await forBothAdminsAndNormalUsers(async () => {
-                MetabaseCookies.getHasSeenAlertSplash = () => false
-
-                const store = await createTestStore()
-                store.pushPath(Urls.question(rawDataQuestion.id()))
-                const app = mount(store.getAppContainer());
-
-                await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
-
-                const actionsMenu = app.find(QueryHeader).find(EntityMenu)
-                click(actionsMenu.childAt(0))
-
-                const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
-                click(alertsMenuItem)
+                useSharedNormalLogin()
+                const { app, store } = await initQbWithAlertMenuItemClicked(rawDataQuestion, { hasSeenAlertSplash: false })
 
                 await store.waitForActions([FETCH_PULSE_FORM_INPUT])
                 const alertModal = app.find(QueryHeader).find(".test-modal")
@@ -234,110 +252,71 @@ describe("Alerts", () => {
             })
         });
 
-        describe("for non-admins", () => {
-            beforeAll(() => {
-                useSharedNormalLogin()
-            })
+        it("should support 'rows present' alert for raw data questions", async () => {
+            useSharedNormalLogin()
+            const { app, store } = await initQbWithAlertMenuItemClicked(rawDataQuestion)
 
-            it("should support 'rows present' alert for raw data questions", async () => {
-                MetabaseCookies.getHasSeenAlertSplash = () => true
+            await store.waitForActions([FETCH_PULSE_FORM_INPUT])
+            const alertModal = app.find(QueryHeader).find(".test-modal")
+            const creationScreen = alertModal.find(CreateAlertModalContent)
+            expect(creationScreen.find(RawDataAlertTip).length).toBe(1)
+            expect(creationScreen.find(AlertSettingToggle).length).toBe(0)
 
-                const store = await createTestStore()
-                store.pushPath(Urls.question(rawDataQuestion.id()))
-                const app = mount(store.getAppContainer());
+            clickButton(creationScreen.find(".Button.Button--primary"))
+            await store.waitForActions([CREATE_ALERT])
+        })
 
-                await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
+        it("should support 'rows present' alert for timeseries questions without a goal", async () => {
+            useSharedNormalLogin()
+            const { app, store } = await initQbWithAlertMenuItemClicked(timeSeriesQuestion)
 
-                const actionsMenu = app.find(QueryHeader).find(EntityMenu)
-                click(actionsMenu.childAt(0))
+            await store.waitForActions([FETCH_PULSE_FORM_INPUT])
+            const alertModal = app.find(QueryHeader).find(".test-modal")
+            const creationScreen = alertModal.find(CreateAlertModalContent)
+            expect(creationScreen.find(RawDataAlertTip).length).toBe(1)
+            expect(creationScreen.find(AlertSettingToggle).length).toBe(0)
+        })
 
-                const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
-                click(alertsMenuItem)
+        it("should work for timeseries questions with a set goal", async () => {
+            useSharedNormalLogin()
+            const { app, store } = await initQbWithAlertMenuItemClicked(timeSeriesWithGoalQuestion)
 
-                await store.waitForActions([FETCH_PULSE_FORM_INPUT])
-                const alertModal = app.find(QueryHeader).find(".test-modal")
-                const creationScreen = alertModal.find(CreateAlertModalContent)
-                expect(creationScreen.find(RawDataAlertTip).length).toBe(1)
-                expect(creationScreen.find(AlertSettingToggle).length).toBe(0)
+            await store.waitForActions([FETCH_PULSE_FORM_INPUT])
+            const alertModal = app.find(QueryHeader).find(".test-modal")
+            // why sometimes the educational screen is shown for a second ...?
+            expect(alertModal.find(AlertEducationalScreen).length).toBe(0)
 
-                clickButton(creationScreen.find(".Button.Button--primary"))
-                await store.waitForActions([CREATE_ALERT])
-            })
+            const creationScreen = alertModal.find(CreateAlertModalContent)
+            expect(creationScreen.find(RawDataAlertTip).length).toBe(0)
 
-            it("should support 'rows present' alert for timeseries questions without a goal", async () => {
-                MetabaseCookies.getHasSeenAlertSplash = () => true
+            const toggles = creationScreen.find(AlertSettingToggle)
+            expect(toggles.length).toBe(2)
 
-                const store = await createTestStore()
-                store.pushPath(Urls.question(timeSeriesQuestion.id()))
-                const app = mount(store.getAppContainer());
+            const aboveGoalToggle = toggles.at(0)
+            expect(aboveGoalToggle.find(Radio).prop("value")).toBe(true)
+            click(aboveGoalToggle.find("li").last())
+            expect(aboveGoalToggle.find(Radio).prop("value")).toBe(false)
 
-                await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
+            const firstOnlyToggle = toggles.at(1)
+            expect(firstOnlyToggle.find(Radio).prop("value")).toBe(true)
 
-                const actionsMenu = app.find(QueryHeader).find(EntityMenu)
-                click(actionsMenu.childAt(0))
+            click(creationScreen.find(".Button.Button--primary"))
+            await store.waitForActions([CREATE_ALERT])
 
-                const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
-                click(alertsMenuItem)
-
-                await store.waitForActions([FETCH_PULSE_FORM_INPUT])
-                const alertModal = app.find(QueryHeader).find(".test-modal")
-                const creationScreen = alertModal.find(CreateAlertModalContent)
-                expect(creationScreen.find(RawDataAlertTip).length).toBe(1)
-                expect(creationScreen.find(AlertSettingToggle).length).toBe(0)
-            })
-
-            it("should work for timeseries questions with a set goal", async () => {
-                MetabaseCookies.getHasSeenAlertSplash = () => true
-
-                const store = await createTestStore()
-                store.pushPath(Urls.question(timeSeriesWithGoalQuestion.id()))
-                const app = mount(store.getAppContainer());
-
-                await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
-                await delay(500);
-
-                const actionsMenu = app.find(QueryHeader).find(EntityMenu)
-                click(actionsMenu.childAt(0))
-
-                const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
-                click(alertsMenuItem)
-
-                await store.waitForActions([FETCH_PULSE_FORM_INPUT])
-                const alertModal = app.find(QueryHeader).find(".test-modal")
-                expect(alertModal.find(AlertEducationalScreen).length).toBe(0)
-
-                const creationScreen = alertModal.find(CreateAlertModalContent)
-                expect(creationScreen.find(RawDataAlertTip).length).toBe(0)
-
-                const toggles = creationScreen.find(AlertSettingToggle)
-                expect(toggles.length).toBe(2)
-
-                const aboveGoalToggle = toggles.at(0)
-                expect(aboveGoalToggle.find(Radio).prop("value")).toBe(true)
-                click(aboveGoalToggle.find("li").last())
-                expect(aboveGoalToggle.find(Radio).prop("value")).toBe(false)
-
-                const firstOnlyToggle = toggles.at(1)
-                expect(firstOnlyToggle.find(Radio).prop("value")).toBe(true)
-
-                click(creationScreen.find(".Button.Button--primary"))
-                await store.waitForActions([CREATE_ALERT])
-
-                const alert = Object.values(getQuestionAlerts(store.getState()))[0]
-                expect(alert.alert_above_goal).toBe(false)
-                expect(alert.alert_first_only).toBe(true)
-            })
+            const alert = Object.values(getQuestionAlerts(store.getState()))[0]
+            expect(alert.alert_above_goal).toBe(false)
+            expect(alert.alert_first_only).toBe(true)
         })
     })
 
     describe("alert list for a question", () => {
         beforeAll(async () => {
             // Both raw data and timeseries questions contain both an alert created by a normal user and by an admin.
-            // The difference is that
-
-
+            // The difference is that the admin-created alert in raw data question contains also the normal user
+            // as a recipient.
             useSharedAdminLogin()
             const adminUser = await UserApi.current();
+            // TODO TODO TODO THIS ALERT HAZ A COMP-LETELY WRONG TYPE!
             await AlertApi.create(getDefaultAlert(timeSeriesWithGoalQuestion, adminUser))
 
             useSharedNormalLogin()
@@ -359,52 +338,90 @@ describe("Alerts", () => {
             await removeAllCreatedAlerts()
         })
 
-        it("should let you see all created alerts as an admin", async () => {
-            useSharedAdminLogin()
-            MetabaseCookies.getHasSeenAlertSplash = () => true
+        describe("as an admin", () => {
+            it("should let you see all created alerts", async () => {
+                useSharedAdminLogin()
+                const { app } = await initQbWithAlertMenuItemClicked(timeSeriesWithGoalQuestion)
 
-            const store = await createTestStore()
-            store.pushPath(Urls.question(timeSeriesWithGoalQuestion.id()))
-            const app = mount(store.getAppContainer());
+                const alertListPopover = app.find(AlertListPopoverContent)
 
-            await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
-            await delay(500);
+                const alertListItems = alertListPopover.find(AlertListItem)
+                expect(alertListItems.length).toBe(2)
+                expect(alertListItems.at(1).text()).toMatch(/Robert/)
+            })
 
-            const actionsMenu = app.find(QueryHeader).find(EntityMenu)
-            click(actionsMenu.childAt(0))
+            it("should let you edit an alert", async () => {
+                // let's in this case try editing someone else's alert
+                useSharedAdminLogin()
+                const { app, store } = await initQbWithAlertMenuItemClicked(timeSeriesWithGoalQuestion)
 
-            const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
-            click(alertsMenuItem)
+                const alertListPopover = app.find(AlertListPopoverContent)
 
-            const alertListPopover = actionsMenu.find(AlertListPopoverContent)
-            expect(alertListPopover.length).toBe(1)
+                const alertListItems = alertListPopover.find(AlertListItem)
+                expect(alertListItems.length).toBe(2)
+                expect(alertListItems.at(1).text()).toMatch(/Robert/)
 
-            const alertListItems = alertListPopover.find(AlertListItem)
-            expect(alertListItems.length).toBe(2)
+                const othersAlertListItem = alertListItems.at(1)
+
+                click(othersAlertListItem.find("a").filterWhere((item) => /Edit/.test(item.text())))
+
+                const editingScreen = app.find(UpdateAlertModalContent)
+                expect(editingScreen.length).toBe(1)
+
+                await store.waitForActions([FETCH_USERS, FETCH_PULSE_FORM_INPUT])
+
+                const toggles = editingScreen.find(AlertSettingToggle)
+                const aboveGoalToggle = toggles.at(0)
+                expect(aboveGoalToggle.find(Radio).prop("value")).toBe(true)
+                click(aboveGoalToggle.find("li").last())
+                expect(aboveGoalToggle.find(Radio).prop("value")).toBe(false)
+
+                click(editingScreen.find(".Button.Button--primary").last())
+                await store.waitForActions([UPDATE_ALERT])
+
+                const alert = Object.values(getQuestionAlerts(store.getState()))[0]
+                expect(alert.alert_above_goal).toBe(false)
+            })
         })
 
-        it("should let you see your own alerts as a non-admin", async () => {
-            useSharedNormalLogin()
-            MetabaseCookies.getHasSeenAlertSplash = () => true
+        describe("as a non-admin / normal user", () => {
+            it("should let you see your own alerts", async () => {
+                useSharedNormalLogin()
+                const { app } = await initQbWithAlertMenuItemClicked(timeSeriesWithGoalQuestion)
 
-            const store = await createTestStore()
-            store.pushPath(Urls.question(timeSeriesWithGoalQuestion.id()))
-            const app = mount(store.getAppContainer());
+                const alertListPopover = app.find(AlertListPopoverContent)
 
-            await store.waitForActions([INITIALIZE_QB, QUERY_COMPLETED, FETCH_ALERTS_FOR_QUESTION])
-            await delay(500);
+                const alertListItems = alertListPopover.find(AlertListItem)
+                expect(alertListItems.length).toBe(1)
+            })
 
-            const actionsMenu = app.find(QueryHeader).find(EntityMenu)
-            click(actionsMenu.childAt(0))
+            it("should let you see also other alerts where you are a recipient", async () => {
+                useSharedNormalLogin()
+                const { app } = await initQbWithAlertMenuItemClicked(rawDataQuestion)
 
-            const alertsMenuItem = actionsMenu.find(Icon).filterWhere(i => i.prop("name") === "alert")
-            click(alertsMenuItem)
+                const alertListPopover = app.find(AlertListPopoverContent)
 
-            const alertListPopover = actionsMenu.find(AlertListPopoverContent)
-            expect(alertListPopover.length).toBe(1)
+                const alertListItems = alertListPopover.find(AlertListItem)
+                expect(alertListItems.length).toBe(2)
+                expect(alertListItems.at(1).text()).toMatch(/Bobby/)
+            })
 
-            const alertListItems = alertListPopover.find(AlertListItem)
-            expect(alertListItems.length).toBe(1)
+            it("should let you unsubscribe from both your own and others' alerts", async () => {
+                useSharedNormalLogin()
+                const { app, store } = await initQbWithAlertMenuItemClicked(rawDataQuestion)
+
+                const alertListPopover = app.find(AlertListPopoverContent)
+
+                const alertListItems = alertListPopover.find(AlertListItem)
+                expect(alertListItems.length).toBe(2)
+                const ownAlertListItem = alertListItems.at(0)
+                // const otherAlertListItem = alertListItems.at(1)
+
+                // unsubscribe from the alert of some other user
+                click(ownAlertListItem.find("a").filterWhere((item) => /Unsubscribe/.test(item.text())))
+                await store.waitForActions([UNSUBSCRIBE_FROM_ALERT])
+
+            })
         })
     })
 })

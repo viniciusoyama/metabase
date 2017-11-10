@@ -82,6 +82,7 @@ export const updateAlert = (alert) => {
 }
 
 export const UNSUBSCRIBE_FROM_ALERT = 'metabase/alerts/UNSUBSCRIBE_FROM_ALERT'
+export const UNSUBSCRIBE_FROM_ALERT_CLEANUP = 'metabase/alerts/UNSUBSCRIBE_FROM_ALERT_CLEANUP'
 const unsubscribeFromAlertRequest = new RestfulRequest({
     endpoint: AlertApi.unsubscribe,
     actionPrefix: UNSUBSCRIBE_FROM_ALERT,
@@ -90,10 +91,11 @@ const unsubscribeFromAlertRequest = new RestfulRequest({
 export const unsubscribeFromAlert = (alert) => {
     return async (dispatch, getState) => {
         await dispatch(unsubscribeFromAlertRequest.trigger(alert))
+        dispatch.action(UNSUBSCRIBE_FROM_ALERT)
 
         // This delay lets us to show "You're unsubscribed" text in place of an
         // alert list item for a while before removing the list item completely
-        setTimeout(() => dispatch.action(UNSUBSCRIBE_FROM_ALERT, alert.id), 5000)
+        setTimeout(() => dispatch.action(UNSUBSCRIBE_FROM_ALERT_CLEANUP, alert.id), 5000)
     }
 }
 
