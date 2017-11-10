@@ -384,7 +384,7 @@
        (< 1 (count (get-in new-card [:dataset_query :query :breakout])))))
 
 (defn- delete-alert-and-notify!
-  "Removes all of the `ALERTS` and notifies all of the email recipients of the alerts change via `NOTIFY-FN!`"
+  "Removes all of the alerts and notifies all of the email recipients of the alerts change via `NOTIFY-FN!`"
   [notify-fn! alerts]
   (db/delete! Pulse :id [:in (map :id alerts)])
   (doseq [{:keys [channels] :as alert} alerts
@@ -393,7 +393,7 @@
       (notify-fn! alert recipient @api/*current-user*))))
 
 (defn delete-alert-and-notify-archived!
-  "Removes all `ALERTS` and will email each recipient letting them know"
+  "Removes all alerts and will email each recipient letting them know"
   [alerts]
   (delete-alert-and-notify! messages/send-alert-stopped-because-archived-email! alerts))
 

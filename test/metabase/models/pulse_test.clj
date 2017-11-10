@@ -7,15 +7,16 @@
              [pulse-card :refer :all]
              [pulse-channel :refer :all]
              [pulse-channel-recipient :refer :all]]
-            [metabase.test.data :refer :all]
+            [metabase.test
+             [data :refer :all]
+             [util :as tu]]
             [metabase.test.data.users :refer :all]
             [metabase.test.mock.util :refer [pulse-channel-defaults]]
             [metabase.util :as u]
             [toucan
              [db :as db]
              [hydrate :refer [hydrate]]]
-            [toucan.util.test :as tt]
-            [metabase.test.util :as tu]))
+            [toucan.util.test :as tt]))
 
 (defn- user-details
   [username]

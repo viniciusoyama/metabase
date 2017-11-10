@@ -147,6 +147,7 @@
                                :created_at    true})]
    :skip_if_empty     true})
 
+;; Check creation of a new rows alert with email notification
 (tt/expect-with-temp [Card [card1 {:name "My question"}]]
   [(-> (default-alert card1)
        (update-in [:channels 0] merge {:schedule_hour 12, :schedule_type "daily", :recipients []}))
@@ -166,6 +167,7 @@
                            #"has any results"
                            #"My question")]))
 
+;; Check creation of a below goal alert
 (tt/expect-with-temp [Card [card1 {:name "My question"
                                    :display "line"}]]
   (rasta-new-alert-email {"goes below its goal" true})
@@ -185,6 +187,7 @@
                           #"goes below its goal"
                           #"My question")))
 
+;; Check creation of a above goal alert
 (tt/expect-with-temp [Card [card1 {:name "My question"
                                    :display "bar"}]]
   (rasta-new-alert-email {"meets its goal" true})
@@ -217,6 +220,7 @@
 (expect
   {:errors {:alert_first_only "value must be a boolean."}}
   ((user->client :rasta) :put 400 "alert/1" {:alert_condition   "rows"}))
+
 (expect
   {:errors {:card "value must be a map."}}
   ((user->client :rasta) :put 400 "alert/1" {:alert_condition   "rows"
@@ -474,6 +478,10 @@
    [(count ((alert-client :rasta) :get 200 (format "alert/question/%d" card-id)))
     (count ((alert-client :crowberto) :get 200 (format "alert/question/%d" card-id)))]))
 
+(expect
+  "Admin user are not allowed to unsubscribe from alerts"
+  ((user->client :crowberto) :put 400 (format "alert/1/unsubscribe")))
+
 (defn- recipient-emails [results]
   (->> results
        first
@@ -482,10 +490,6 @@
        :recipients
        (map :email)
        set))
-
-(expect
-  "Admin user are not allowed to unsubscribe from alerts"
-  ((user->client :crowberto) :put 400 (format "alert/1/unsubscribe")))
 
 ;; Alert has two recipients, remove one
 (tt/expect-with-temp [Card                 [{card-id :id}  (basic-alert-query)]

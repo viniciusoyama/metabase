@@ -47,7 +47,7 @@
   `(do-with-fake-inbox (fn [] ~@body)))
 
 (defn- create-email-body->regex-fn
-  "Returns a function expecting the email body structure. It will apply the regexes in `regex-seq` over the body and
+  "Returns a function expecting the email body structure. It will apply the regexes in `REGEX-SEQ` over the body and
   return map of the stringified regex as the key and a boolean as the value. True if it returns results via `re-find`
   false otherwise."
   [regex-seq]
@@ -57,20 +57,21 @@
               (map #(boolean (re-find % message-body)) regex-seq)))))
 
 (defn regex-email-bodies
-  "Takes a seq of regexes `regex-seq` that will will be applied to each email body in the fake inbox. The body will be
-  replaced by a map with the stringified regex as it's key and a boolean indicated that the regex returned results."
+  "Will be apply each regex to each email body in the fake inbox. The body will be replaced by a map with the
+  stringified regex as it's key and a boolean indicated that the regex returned results."
   [& regexes]
   (let [email-body->regex-boolean (create-email-body->regex-fn regexes)]
     (m/map-vals (fn [emails-for-recipient]
-                  (map #(update % :body email-body->regex-boolean) emails-for-recipient))
+                  (for [email emails-for-recipient]
+                    (update email :body email-body->regex-boolean)))
                 @inbox)))
 
 (defn email-to
-  "Creates a default email map for `USER`, as would be returned by `with-fake-inbox`"
+  "Creates a default email map for `USER-KWD` via `user/fetch-user`, as would be returned by `with-fake-inbox`"
   [user-kwd & [email-map]]
   (let [{:keys [email]} (user/fetch-user user-kwd)]
     {email [(merge {:from "notifications@metabase.com",
-                     :to [email]}
+                    :to [email]}
                     email-map)]}))
 
 ;; simple test of email sending capabilities

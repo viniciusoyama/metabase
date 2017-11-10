@@ -18,7 +18,7 @@
             [toucan.db :as db]))
 
 (api/defendpoint GET "/"
-  "Fetch all `Alerts`"
+  "Fetch all alerts"
   []
   (for [alert (pulse/retrieve-alerts)
         :let  [can-read?  (mi/can-read? alert)
@@ -43,7 +43,7 @@
   (select-keys request [:alert_condition :alert_first_only :alert_above_goal]))
 
 (api/defendpoint POST "/"
-  "Create a new `Alert`."
+  "Create a new alert (`Pulse`)"
   [:as {{:keys [alert_condition card channels alert_first_only alert_above_goal] :as req} :body}]
   {alert_condition   AlertConditions
    alert_first_only  s/Bool
@@ -128,7 +128,7 @@
   "An alert should be deleted instead of unsubscribing if
      - the unsubscriber is the creator
      - they are the only recipient
-     - there is no slack channel selected"
+     - there is no slack channel"
   [alert unsubscribing-user-id]
   (let [{:keys [recipients]} (email-channel alert)]
     (and (= unsubscribing-user-id (:creator_id alert))
@@ -146,7 +146,9 @@
     (api/read-check alert)
 
     (if (should-unsubscribe-delete? alert api/*current-user-id*)
+      ;; No need to unsubscribe if we're just going to delete the Pulse
       (db/delete! Pulse :id id)
+      ;; There are other receipieints, remove current user only
       (pulse/unsubscribe-from-alert id api/*current-user-id*))
 
     (when (email/email-configured?)
@@ -155,10 +157,7 @@
     api/generic-204-no-content))
 
 (defn- collect-alert-recipients [alert]
-  (reduce into #{}
-          (for [{:keys [channel_type recipients]} (:channels alert)
-                :when (= :email channel_type)]
-            recipients)))
+  (set (:recipients (email-channel alert))))
 
 (api/defendpoint DELETE "/:id"
   [id]

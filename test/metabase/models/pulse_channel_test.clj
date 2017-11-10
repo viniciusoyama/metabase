@@ -5,13 +5,14 @@
              [pulse :refer :all]
              [pulse-channel :refer :all]
              [pulse-channel-recipient :refer :all]]
-            [metabase.test.data :refer :all]
+            [metabase.test
+             [data :refer :all]
+             [util :as tu]]
             [metabase.test.data.users :refer :all]
             [toucan
              [db :as db]
              [hydrate :refer [hydrate]]]
-            [toucan.util.test :as tt]
-            [metabase.test.util :as tu]))
+            [toucan.util.test :as tt]))
 
 ;; Test out our predicate functions
 

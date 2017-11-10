@@ -34,15 +34,15 @@
 
 (defn- pulse-details [pulse]
   (tu/match-$ pulse
-    {:id                $
-     :name              $
-     :created_at        $
-     :updated_at        $
-     :creator_id        $
-     :creator           (user-details (db/select-one 'User :id (:creator_id pulse)))
-     :cards             (map pulse-card-details (:cards pulse))
-     :channels          (map pulse-channel-details (:channels pulse))
-     :skip_if_empty     $}))
+    {:id            $
+     :name          $
+     :created_at    $
+     :updated_at    $
+     :creator_id    $
+     :creator       (user-details (db/select-one 'User :id (:creator_id pulse)))
+     :cards         (map pulse-card-details (:cards pulse))
+     :channels      (map pulse-channel-details (:channels pulse))
+     :skip_if_empty $}))
 
 (defn- pulse-response [{:keys [created_at updated_at], :as pulse}]
   (-> pulse

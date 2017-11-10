@@ -16,6 +16,7 @@
              [ui-logic :as ui]
              [urls :as urls]]
             [metabase.util.urls :as urls]
+            [puppetlabs.i18n.core :refer [tru]]
             [schema.core :as s]
             [toucan.db :as db])
   (:import java.util.TimeZone))
@@ -58,19 +59,6 @@
    :below "gone below its goal"
    :rows  "results"})
 
-(defn- find-goal-value
-  "The goal value can come from a progress goal or a graph goal_value depending on it's type"
-  [result]
-  (case (get-in result [:card :display])
-
-    (:area :bar :line)
-    (get-in result [:card :visualization_settings :graph.goal_value])
-
-    :progress
-    (get-in result [:card :visualization_settings :progress.goal])
-
-    nil))
-
 (defn create-slack-attachment-data
   "Returns a seq of slack attachment data structures, used in `create-and-upload-slack-attachments!`"
   [card-results]
@@ -111,13 +99,13 @@
   (let [first-result    (first results)
         goal-comparison (if alert_above_goal <= >=)
         comparison-col-index (ui/goal-comparison-column first-result)
-        goal-val (find-goal-value first-result)]
+        goal-val (ui/find-goal-value first-result)]
 
     (when-not (and goal-val comparison-col-index)
-      (throw (Exception. (format (str "Unable to compare results to goal for alert. "
-                                      "Question ID is '%s' with visualization settings '%s'")
-                                 (get-in results [:card :id])
-                                 (pr-str (get-in results [:card :visualization_settings]))))))
+      (throw (Exception. (str (tru "Unable to compare results to goal for alert.")
+                              (tru "Question ID is '{0}' with visualization settings '{1}'"
+                                   (get-in results [:card :id])
+                                   (pr-str (get-in results [:card :visualization_settings])))))))
 
     (some (fn [row]
             (goal-comparison goal-val (nth row comparison-col-index)))
@@ -142,7 +130,8 @@
     (goal-met? alert results)
 
     :else
-    (throw (IllegalArgumentException. (format "Unrecognized alert with condition '%s'" alert_condition)))))
+    (let [^String error-text (tru "Unrecognized alert with condition '{0}'" alert_condition)]
+      (throw (IllegalArgumentException. error-text)))))
 
 (defmethod should-send-notification? :pulse
   [{:keys [alert_condition] :as pulse} results]
@@ -186,7 +175,7 @@
     {:subject      email-subject
      :recipients   email-recipients
      :message-type :attachments
-     :message      (messages/render-alert-email timezone pulse results (find-goal-value results))}))
+     :message      (messages/render-alert-email timezone pulse results (ui/find-goal-value results))}))
 
 (defmethod create-notification [:alert :slack]
   [pulse results {{channel-id :channel} :details :as channel}]

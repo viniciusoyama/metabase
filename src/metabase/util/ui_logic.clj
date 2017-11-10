@@ -76,3 +76,16 @@
   [result]
   (or (column-name->index result (get-in result [:card :visualization_settings :graph.metrics]))
       (default-goal-column-index result)))
+
+(defn find-goal-value
+  "The goal value can come from a progress goal or a graph goal_value depending on it's type"
+  [result]
+  (case (get-in result [:card :display])
+
+    (:area :bar :line)
+    (get-in result [:card :visualization_settings :graph.goal_value])
+
+    :progress
+    (get-in result [:card :visualization_settings :progress.goal])
+
+    nil))
