@@ -106,6 +106,11 @@ export default class DashboardHeader extends Component {
         this.props.onEditingChange(true);
     }
 
+    onAddTextBox() {
+        const newTextCard = {};
+        this.props.addCardToDashboard({ dashId: this.props.dashboard.id, cardId: newTextCard.id });
+    }
+
     onDoneEditing() {
         this.props.onEditingChange(false);
     }
@@ -272,6 +277,17 @@ export default class DashboardHeader extends Component {
                         onClose={() => this.refs.addQuestionModal.toggle()}
                     />
                 </ModalWithTrigger>
+            );
+        }
+
+        // Add text card button
+        if (!isFullscreen && isEditing) {
+            buttons.push(
+                <Tooltip tooltip="Add a text box">
+                    <a data-metabase-event="Dashboard;Add Text Box" key="add-text" title="Add a text box" className="text-brand-hover cursor-pointer" onClick={() => this.onAddTextBox()}>
+                        <Icon name="editdocument" size={16} />
+                    </a>
+                </Tooltip>
             );
         }
 
