@@ -139,7 +139,7 @@ const alerts = handleActions({
     ...createAlertRequest.getReducers(),
     ...updateAlertRequest.getReducers(),
     [DELETE_ALERT]: removeAlertReducer,
-    [UNSUBSCRIBE_FROM_ALERT]: removeAlertReducer,
+    [UNSUBSCRIBE_FROM_ALERT_CLEANUP]: removeAlertReducer,
 }, []);
 
 export default combineReducers({
