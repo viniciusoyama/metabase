@@ -379,8 +379,9 @@ describe("Alerts", () => {
                 click(editingScreen.find(".Button.Button--primary").last())
                 await store.waitForActions([UPDATE_ALERT])
 
-                const alert = Object.values(getQuestionAlerts(store.getState()))[0]
-                expect(alert.alert_above_goal).toBe(false)
+                const alerts = Object.values(getQuestionAlerts(store.getState()))
+                const othersAlert = alerts.find((alert) => alert.creator_id === 2)
+                expect(othersAlert.alert_above_goal).toBe(false)
             })
         })
 
