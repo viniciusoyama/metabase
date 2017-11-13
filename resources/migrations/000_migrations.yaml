@@ -3953,36 +3953,14 @@ databaseChangeLog:
                   name: alert_condition
                   type: varchar(254)
                   remarks: 'Condition (i.e. "rows" or "goal") used as a guard for alerts'
-                  constraints:
-                    nullable: true
-              - column:
-                  name: alert_description
-                  type: varchar(254)
-                  remarks: 'Text included in alert notifications'
-                  constraints:
-                    nullable: true
               - column:
                   name: alert_first_only
                   type: boolean
                   remarks: 'True if the alert should be disabled after the first notification'
-                  constraints:
-                    nullable: true
               - column:
                   name: alert_above_goal
                   type: boolean
                   remarks: 'For a goal condition, alert when above the goal'
-                  constraints:
-                    nullable: true
-  - changeSet:
-      id: 71
-      author: senior
-      comment: 'Added 0.27.0'
-      remarks: 'Changes to the pulse table for alerts'
-      changes:
-        # This column was descoped before 0.27.0 and not released
-        - dropColumn:
-            tableName: pulse
-            columnName: alert_description
         # There is no name for an alert, so this column is only required for pulses
         - dropNotNullConstraint:
             tableName: pulse
