@@ -400,6 +400,23 @@
 (defn- delete-alert-and-notify-changed! [alerts]
   (delete-alert-and-notify! messages/send-alert-stopped-because-changed-email! alerts))
 
+(defn- delete-alerts-if-needed! [old-card {card-id :id :as new-card}]
+  ;; If there are alerts, we need to check to ensure the card change doesn't invalidate the alert
+  (when-let [alerts (seq (pulse/retrieve-alerts-for-card card-id))]
+    (cond
+
+      (card-archived? old-card new-card)
+      (delete-alert-and-notify-archived! alerts)
+
+      (or (display-change-broke-alert? old-card new-card)
+          (goal-missing? old-card new-card)
+          (multiple-breakouts? new-card))
+      (delete-alert-and-notify-changed! alerts)
+
+      ;; The change doesn't invalidate the alert, do nothing
+      :else
+      nil)))
+
 (api/defendpoint PUT "/:id"
   "Update a `Card`."
   [id :as {{:keys [dataset_query description display name visualization_settings archived collection_id enable_embedding embedding_params result_metadata metadata_checksum], :as body} :body}]
@@ -429,24 +446,9 @@
           :present #{:collection_id :description}
           :non-nil #{:dataset_query :display :name :visualization_settings :archived :enable_embedding :embedding_params :result_metadata})))
     ;; Fetch the updated Card from the DB
-    (let [card   (Card id)
-          alerts (pulse/retrieve-alerts-for-card id)]
+    (let [card (Card id)]
 
-      ;; If there are alerts, we need to check to ensure the card change doesn't invalidate the alert
-      (when (seq alerts)
-        (cond
-
-          (card-archived? card-before-update card)
-          (delete-alert-and-notify-archived! alerts)
-
-          (or (display-change-broke-alert? card-before-update card)
-              (goal-missing? card-before-update card)
-              (multiple-breakouts? card))
-          (delete-alert-and-notify-changed! alerts)
-
-          ;; The change doesn't invalidate the alert, do nothing
-          :else
-          nil))
+      (delete-alerts-if-needed! card-before-update card)
 
       (publish-card-update! card archived)
       ;; include same information returned by GET /api/card/:id since frontend replaces the Card it currently has with returned one -- See #4142

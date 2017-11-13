@@ -167,16 +167,17 @@
                            [:= :pcr.user_id user-id]]})))
 
 (defn retrieve-alerts-for-card
-  "Find all alerts for `CARD-ID`, used for admin users"
+  "Find all alerts for `CARD-IDS`, used for admin users"
   [& card-ids]
-  (map (comp pulse->alert hydrate-pulse)
-       (query-as Pulse
-                 {:select [:p.*]
-                  :from   [[Pulse :p]]
-                  :join   [[PulseCard :pc] [:= :p.id :pc.pulse_id]]
-                  :where  [:and
-                           [:not= :p.alert_condition nil]
-                           [:in :pc.card_id card-ids]]})))
+  (when (seq card-ids)
+    (map (comp pulse->alert hydrate-pulse)
+         (query-as Pulse
+                   {:select [:p.*]
+                    :from   [[Pulse :p]]
+                    :join   [[PulseCard :pc] [:= :p.id :pc.pulse_id]]
+                    :where  [:and
+                             [:not= :p.alert_condition nil]
+                             [:in :pc.card_id card-ids]]}))))
 
 ;;; ------------------------------------------------------------ Other Persistence Functions ------------------------------------------------------------
 

@@ -17,24 +17,25 @@
             [schema.core :as s]
             [toucan.db :as db]))
 
-(api/defendpoint GET "/"
-  "Fetch all alerts"
-  []
-  (for [alert (pulse/retrieve-alerts)
+(defn- add-read-only-flag [alerts]
+  (for [alert alerts
         :let  [can-read?  (mi/can-read? alert)
                can-write? (mi/can-write? alert)]
         :when (or can-read?
                   can-write?)]
     (assoc alert :read_only (not can-write?))))
 
+(api/defendpoint GET "/"
+  "Fetch all alerts"
+  []
+  (add-read-only-flag (pulse/retrieve-alerts)))
+
 (api/defendpoint GET "/question/:id"
+  "Fetch all questions for the given question (`Card`) id"
   [id]
-  (for [alert (if api/*is-superuser?*
-                (pulse/retrieve-alerts-for-card id)
-                (pulse/retrieve-user-alerts-for-card id api/*current-user-id*))
-        :let  [can-read?  (mi/can-read? alert)
-               can-write? (mi/can-write? alert)]]
-    (assoc alert :read_only (not can-write?))))
+  (add-read-only-flag (if api/*is-superuser?*
+                        (pulse/retrieve-alerts-for-card id)
+                        (pulse/retrieve-user-alerts-for-card id api/*current-user-id*))))
 
 (def ^:private AlertConditions
   (s/enum "rows" "goal"))
@@ -137,11 +138,11 @@
          (nil? (slack-channel alert)))))
 
 (api/defendpoint PUT "/:id/unsubscribe"
+  "Unsubscribes a user from the given alert"
   [id]
   ;; Admins are not allowed to unsubscribe from alerts, they should edit the alert
   (api/check (not api/*is-superuser?*)
     [400 "Admin user are not allowed to unsubscribe from alerts"])
-  (assert (integer? id))
   (let [alert (pulse/retrieve-alert id)]
     (api/read-check alert)
 
@@ -160,6 +161,7 @@
   (set (:recipients (email-channel alert))))
 
 (api/defendpoint DELETE "/:id"
+  "Remove an alert"
   [id]
   (api/let-404 [alert (pulse/retrieve-alert id)]
     (api/check-superuser)
