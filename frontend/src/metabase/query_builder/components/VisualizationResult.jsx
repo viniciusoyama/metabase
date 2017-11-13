@@ -15,6 +15,7 @@ type Props = {
     isObjectDetail: boolean,
     result: any,
     results: any[],
+    isDirty: boolean,
     lastRunDatasetQuery: DatasetQuery,
     navigateToNewCardInsideQB: (any) => void
 }
